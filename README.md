@@ -66,3 +66,11 @@ The smoke test opens a real game window, takes a screenshot under `artifacts/`, 
 | save_load.py | Save team (later session) |
 
 Start with up to four pairs; smaller classes combine teams. See docs/CONTRACTS.md before changing a shared function. `assets/` is reserved for student-created or licensed artwork; baseline visuals use engine primitives. Ursina is an external dependency: https://www.ursinaengine.org/ .
+
+## Verified baseline
+
+Tested on the instructor's Mac with Python 3.13.5: eight logic tests and a real-window integration check covering raycast placement/removal, selection, save/load, invalid saves, pause, and crystal collection. Run the latter with `.venv/bin/python tests/graphics_smoke.py`. A screenshot was visually reviewed.
+
+Ursina emits startup shader/icon warnings on this Mac even after the in-memory compatibility fix; the rendered game and integration checks work. These warnings are from engine initialization. Windows and student machines still require a setup/play check before class.
+
+Instructor release packaging: `python package_release.py v0.2` writes a fresh ZIP beside this folder and excludes environments, saves, and Git history.

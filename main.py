@@ -64,7 +64,7 @@ class Game(Entity):
             self.add_view(position, material)
         for name, position in CRYSTALS.items():
             if name not in self.objectives.collected:
-                self.crystals[name] = Entity(model='cube', position=position, scale=.35,
+                self.crystals[name] = Entity(model='cube', texture='white_cube', position=position, scale=.35,
                     rotation=(35, 45, 0), color=color.cyan)
 
     def respawn(self):
