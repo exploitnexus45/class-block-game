@@ -834,20 +834,38 @@ const Parkour = {
 const CORNERS = [[15.5, 15.5], [49.5, 15.5], [15.5, 49.5], [49.5, 49.5]];
 const WAVES = [3, 5, 7];
 const Wars = {
-  title: 'BLOCK WARS', yaw: 0, outline: false, use: 'THROW',
+  title: 'BLOCK WARS', yaw: 0, use: 'USE',
+  get outline() { return selected === 2; },
   init() {
     G = { hp: 10, bots: [], balls: [], queue: [], wave: 0, state: 'wait', pause: 3.5, kills: 0, bricks: 24, placed: new Set(), cool: 0, regen: 0, t: 0 };
-    setHotbar([{ icon: 'snow', tip: 'Snowball blaster (click)' }, { block: 8, tip: 'Stone bricks (right-click)', count: G.bricks }]);
+    setHotbar([{ icon: 'snow', tip: 'Snowball blaster (click)' }, { block: 8, tip: 'Stone bricks (right-click)', count: G.bricks }, { icon: 'pick', tip: 'Pickaxe: hold click to mine (+1 brick)' }]);
+    G.mine = null;
     banner('BLOCK WARS', 'Wave 1 starts in 3 seconds. Click to throw snowballs!', '#ff5280', 3200);
     say('<b>Block Wars</b>: Blockers are coming! <b>Click</b> to throw snowballs.', 15000);
     say('<b>Right-click</b> to build brick walls. Blockers smash walls, so keep moving!', 15000);
+    say('Press <b>3</b> for your <b>pickaxe</b>: hold click to mine blocks and get bricks back.', 15000);
     say('Survive all 3 waves to win.', 15000);
   },
   hot() { SLOTS[1].count = G.bricks; refreshHotbar(); },
   primary(dt, held) {
+    if (selected === 2) return this.mine(dt, held);
+    $('minebar').hidden = true; G.mine = null;
     if (!held || G.cool > 0) return;
     G.cool = 0.28;
     G.balls.push({ x: curEye[0] + curDir[0] * 0.6, y: curEye[1] + curDir[1] * 0.6 - 0.1, z: curEye[2] + curDir[2] * 0.6, vx: curDir[0] * 30, vy: curDir[1] * 30 + 1.5, vz: curDir[2] * 30, t: 0 });
+  },
+  mine(dt, held) {
+    $('minebar').hidden = true;
+    if (!held) { G.mine = null; return; }
+    const h = aim(5); if (!h) { G.mine = null; return; }
+    if (h.y <= 16) { G.mine = null; return warn('The arena floor is too tough to mine.'); }
+    const key = h.x + ',' + h.y + ',' + h.z;
+    if (!G.mine || G.mine.key !== key) G.mine = { key, t: 0, need: G.placed.has(key) ? 0.35 : 0.8 };
+    G.mine.t += dt;
+    $('minebar').hidden = false; $('minebar').firstChild.style.width = Math.min(100, G.mine.t / G.mine.need * 100) + '%';
+    if (G.mine.t < G.mine.need) return;
+    setBlock(h.x, h.y, h.z, 0); G.placed.delete(key); G.mine = null; $('minebar').hidden = true;
+    G.bricks++; this.hot();
   },
   secondary() {
     if (G.bricks <= 0) return warn('Out of bricks! You get 16 more after each wave.');
@@ -941,7 +959,7 @@ const Wars = {
   },
   board() {
     const hearts = '♥'.repeat(G.hp) + '<span style="opacity:.3">' + '♥'.repeat(10 - G.hp) + '</span>';
-    return `<h2>BLOCK WARS</h2><div class="big" style="color:#ff5280">${hearts}</div>${row('Wave', Math.max(1, G.wave) + ' of 3')}${row('Blockers left', G.bots.length + G.queue.length)}${row('Knocked out', G.kills)}${row('Bricks', G.bricks)}`;
+    return `<h2>BLOCK WARS</h2><div class="big" style="color:#ff5280">${hearts}</div>${row('Wave', Math.max(1, G.wave) + ' of 3')}${row('Blockers left', G.bots.length + G.queue.length)}${row('Knocked out', G.kills)}${row('Bricks', G.bricks)}${row('In hand', ['Snowballs', 'Bricks', 'Pickaxe'][selected] || '—')}`;
   },
   draw(V, I) {
     for (const b of G.bots) {
