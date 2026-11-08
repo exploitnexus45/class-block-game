@@ -1,4 +1,8 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Class Block Game Lobby</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
@@ -98,9 +102,33 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   .slot .ic { inset: 8px; }
   #chat { font-size: 18px; width: calc(100vw - 200px); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
 }
-@media (prefers-reduced-motion: reduce) { #chat div { transition: none; } }
+#result, #craft { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+#menu h2.h2b { margin: 18px 0 10px; }
+#result h2, #craft h2 { margin: 0 0 12px; font: 700 20px var(--display); color: var(--gold); text-wrap: balance; }
+#resB { font-size: 22px; }
+#resB p { margin: 0 0 10px; color: var(--ink-dim); }
+#resB .line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 2px solid rgba(255,255,255,.07); }
+#resB .line span:last-child { color: var(--gold); text-align: right; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.btn.alt { background: #4a4458; }
+.btn.alt:hover { background: #575069; }
+.game:disabled { opacity: .45; cursor: not-allowed; }
+.slot .blk { position: absolute; inset: 12px; box-shadow: inset 3px 3px 0 rgba(255,255,255,.28), inset -3px -3px 0 rgba(0,0,0,.35); }
+.slot .n { position: absolute; right: 4px; bottom: 0; font-size: 17px; text-shadow: 2px 2px 0 #000; }
+#board .row.done span:first-child { color: var(--grass); }
+#board .row span:first-child { white-space: normal; }
+#board .big { font: 700 17px/1.3 var(--display); text-align: center; margin: 0 0 6px; color: var(--ink); }
+#minebar { position: fixed; left: 50%; top: calc(50% + 18px); transform: translateX(-50%); width: 46px; height: 5px; background: rgba(0,0,0,.5); pointer-events: none; }
+#minebar i { display: block; height: 100%; width: 0; background: #fff; }
+#hurt { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 140px 40px rgba(220, 30, 40, .75); opacity: 0; transition: opacity .3s; }
+#tuse { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); right: calc(104px + env(safe-area-inset-right, 0px)); }
+#tplace { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 640px) { .slot .blk { inset: 9px; } .slot .n { font-size: 14px; } }
+@media (prefers-reduced-motion: reduce) { #chat div { transition: none; } #hurt { transition: none; } }
 </style>
 
+</head>
+<body>
 <canvas id="gl" aria-label="3D lobby world"></canvas>
 <div id="crosshair" hidden></div>
 
@@ -110,6 +138,7 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   <div class="row"><span>Online</span><span id="online">1</span></div>
   <div class="row"><span>Dog</span><span id="dogstate">Doing laps</span></div>
   <div class="row"><span>Speed</span><span id="speed">0.0 b/s</span></div>
+  <div class="row"><span>Best lap</span><span id="bestlap">—</span></div>
   <hr>
   <div class="row"><span><i class="sw" style="background:var(--p0)"></i>Survival</span><span>east</span></div>
   <div class="row"><span><i class="sw" style="background:var(--p1)"></i>Build Battle</span><span>west</span></div>
@@ -120,6 +149,8 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
 <div id="chat" aria-live="polite"></div>
 <div id="prompt" class="panel" hidden></div>
 <div id="ridebar" class="panel" hidden>RIDING NUGGET · SHIFT FOR TURBO · F TO HOP OFF</div>
+<div id="minebar" hidden><i></i></div>
+<div id="hurt"></div>
 
 <nav id="hotbar" class="panel" aria-label="Hotbar"></nav>
 
@@ -129,9 +160,34 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
 
 <div id="menu" hidden>
   <div class="card" role="dialog" aria-label="Game menu">
-    <h2>PICK A GAME</h2>
+    <div id="menuGame" hidden>
+      <h2 id="menuTitle">PAUSED</h2>
+      <div class="games">
+        <button class="btn" id="menuFinish" hidden>FINISH &amp; JUDGE</button>
+        <button class="btn" id="menuRestart">RESTART</button>
+        <button class="btn alt" id="menuLobby">BACK TO LOBBY</button>
+      </div>
+      <h2 class="h2b">SWITCH GAME</h2>
+    </div>
+    <h2 id="menuPick">PICK A GAME</h2>
     <div class="games" id="games"></div>
     <button class="btn close" id="menuClose">BACK TO LOBBY</button>
+  </div>
+</div>
+
+<div id="result" hidden>
+  <div class="card" role="dialog" aria-labelledby="resT">
+    <h2 id="resT"></h2>
+    <div id="resB"></div>
+    <div class="row2"><button class="btn" id="resAgain">PLAY AGAIN</button><button class="btn alt" id="resLobby">LOBBY</button></div>
+  </div>
+</div>
+
+<div id="craft" hidden>
+  <div class="card" role="dialog" aria-label="Crafting">
+    <h2>CRAFTING</h2>
+    <div class="games" id="recipes"></div>
+    <button class="btn close" id="craftClose">DONE (C)</button>
   </div>
 </div>
 
@@ -140,18 +196,22 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   <button class="tbtn" id="tjump">JUMP</button>
   <button class="tbtn" id="tsprint">TURBO</button>
   <button class="tbtn" id="tride">RIDE</button>
+  <button class="tbtn" id="tuse" hidden>MINE</button>
+  <button class="tbtn" id="tplace" hidden>PLACE</button>
 </div>
 
 <div id="start">
   <div class="card">
     <h1>CLASS BLOCK GAME</h1>
-    <div class="sub">Lobby #1 · pick a portal, or ride the dog</div>
+    <div class="sub">Lobby #1 · pick a portal, or race Nugget around the track</div>
     <div class="keys">
       <kbd>W A S D</kbd><span>Walk</span>
       <kbd>SPACE</kbd><span>Jump</span>
       <kbd>SHIFT</kbd><span>Sprint (turbo when riding)</span>
       <kbd>F</kbd><span>Ride or hop off Nugget the dog</span>
       <kbd>Q</kbd><span>Whistle for Nugget</span>
+      <kbd>CLICK</kbd><span>Mine, break or throw (in games)</span>
+      <kbd>RIGHT-CLICK</kbd><span>Place a block (in games)</span>
       <kbd>E</kbd><span>Game menu</span>
       <kbd>MOUSE</kbd><span>Look around (Esc frees the cursor)</span>
     </div>
@@ -171,8 +231,8 @@ const bytes = Uint8Array.from(atob(WASM_B64), (c) => c.charCodeAt(0));
 const { instance } = await WebAssembly.instantiate(bytes, { env: {} });
 const E = instance.exports;
 E.generate(20261108);
-const nIdx = E.build_mesh();
-const nOpaque = E.opaque_index_count();
+let nIdx = E.build_mesh();
+let nOpaque = E.opaque_index_count();
 const nVert = E.vert_count();
 const mem = E.memory.buffer;
 const vertData = new Float32Array(mem, E.verts_ptr(), nVert * 9);
@@ -342,12 +402,104 @@ function buildDog(st) {
   return { V: new Float32Array(V), I: new Uint32Array(I) };
 }
 
+// ---------- blocks & helpers ----------
+const BLOCK = {
+  1: ['Grass', '#5d9a3c'], 2: ['Dirt', '#87613f'], 3: ['Stone', '#80808a'], 5: ['Log', '#664729'], 6: ['Leaves', '#428533'],
+  7: ['Planks', '#bd915a'], 8: ['Stone bricks', '#78787a'], 9: ['Cobblestone', '#999791'], 10: ['Gold block', '#ffd673'],
+  11: ['Obsidian', '#2a1f45'], 12: ['Sand', '#dbcc94'], 17: ['Coal ore', '#2b2b2e'], 18: ['Iron ore', '#dba880'],
+  19: ['Gold ore', '#ffd933'], 20: ['Diamond ore', '#59f2f2'], 23: ['Red wool', '#cc3333'], 24: ['Orange wool', '#ed8026'],
+  25: ['Yellow wool', '#f7d933'], 26: ['Lime wool', '#73cc33'], 27: ['Blue wool', '#3359d9'], 28: ['Purple wool', '#8c40bf'],
+  29: ['White wool', '#ebebe6'], 30: ['Black wool', '#1f1f24'], 31: ['Gray block', '#808080'],
+};
+const blockCol = (id) => (BLOCK[id] || ['?', '#888'])[1];
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem('cbg:' + k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('cbg:' + k, JSON.stringify(v)); } catch (e) {} },
+};
+const fmtTime = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
+const clamp10 = (v) => Math.max(1, Math.min(10, Math.round(v)));
+let worldDirty = false;
+function setBlock(x, y, z, id) { E.set_block(x, y, z, id); worldDirty = true; }
+function uploadWorld() {
+  nIdx = E.build_mesh(); nOpaque = E.opaque_index_count();
+  const nv = E.vert_count(), m = E.memory.buffer;
+  gl.bindVertexArray(world.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, world.vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m, E.verts_ptr(), nv * 9), gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, world.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m, E.index_ptr(), nIdx), gl.DYNAMIC_DRAW);
+  gl.bindVertexArray(null);
+}
+
+// ---------- bigger lobby + race track ----------
+// Rounded-square distance from the island centre: straights at 26 blocks out, corners rounded.
+const TRACK_IN = 23.5, TRACK_OUT = 28.5, LAND_OUT = 30.6;
+function ringDist(x, z) {
+  const dx = Math.abs(x + 0.5 - 32), dz = Math.abs(z + 0.5 - 32);
+  return (dx > 16 && dz > 16) ? 16 + Math.hypot(dx - 16, dz - 16) : Math.max(dx, dz);
+}
+function onTrack(x, z) { const r = ringDist(Math.floor(x), Math.floor(z)); return r >= TRACK_IN && r < TRACK_OUT; }
+function buildLobbyExtras() {
+  for (let x = 0; x < 64; x++) for (let z = 0; z < 64; z++) {
+    const r = ringDist(x, z);
+    if (r >= LAND_OUT) continue;
+    const isTrack = r >= TRACK_IN && r < TRACK_OUT;
+    if (r >= 22.5) for (let y = 17; y < 40; y++) E.set_block(x, y, z, 0); // flatten the outer ring
+    if (r >= 22.5 || !E.get_block(x, 16, z)) {
+      for (let y = 12; y <= 15; y++) if (!E.get_block(x, y, z)) E.set_block(x, y, z, y < 14 ? 3 : 2);
+      let top = 1;
+      if (isTrack) {
+        const curb = r < TRACK_IN + 1 || r >= TRACK_OUT - 1;
+        top = curb ? (((x + z) >> 1) % 2 ? 23 : 29) : 31;
+      }
+      E.set_block(x, 16, z, top);
+    }
+  }
+  // checkered start / finish line across the north straight
+  for (let z = 4; z <= 8; z++) for (const x of [31, 32]) E.set_block(x, 16, z, (x + z) % 2 ? 30 : 29);
+  // start arch
+  for (const z of [3, 9]) for (let y = 17; y <= 21; y++) for (const x of [31, 32]) E.set_block(x, y, z, 8);
+  for (let z = 3; z <= 9; z++) for (const x of [31, 32]) E.set_block(x, 22, z, (x + z) % 2 ? 10 : 30);
+  // hurdles to jump while riding (or steer around)
+  for (let x = 55; x <= 57; x++) E.set_block(x, 17, 30, 7);
+  for (let x = 6; x <= 8; x++) E.set_block(x, 17, 34, 7);
+  for (let z = 56; z <= 58; z++) E.set_block(36, 17, z, 7);
+  // trees in the new corners, inside the track
+  for (const [tx, tz] of [[12, 12], [51, 12], [12, 51], [51, 51]]) {
+    for (let y = 17; y <= 20; y++) E.set_block(tx, y, tz, 5);
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let y = 20; y <= 22; y++) {
+      if (Math.abs(dx) + Math.abs(dz) + (y - 20) > 3 || (dx === 0 && dz === 0 && y < 21)) continue;
+      if (!E.get_block(tx + dx, y, tz + dz)) E.set_block(tx + dx, y, tz + dz, 6);
+    }
+  }
+}
+// lap timing: only counts while riding Nugget
+const race = { on: false, t: 0, seen: new Set(), last: null, best: store.get('raceBest'), prevX: null, nag: 0 };
+function trackSide(x, z) { const dx = x - 32, dz = z - 32; return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'E' : 'W') : (dz > 0 ? 'S' : 'N'); }
+function raceStep(dt) {
+  const x = E.player_x(), z = E.player_z(), riding = E.is_riding();
+  race.nag -= dt;
+  if (race.on) race.t += dt;
+  if (onTrack(x, z)) race.seen.add(trackSide(x, z));
+  const crossed = race.prevX !== null && z > 3 && z < 10 && (race.prevX < 32.5) !== (x < 32.5);
+  race.prevX = x;
+  if (!crossed) return;
+  if (!riding) { if (race.nag <= 0) { say('Hop on <b>Nugget</b> (F) to race the track!', 4000); race.nag = 6; } race.on = false; return; }
+  if (race.on && race.seen.has('E') && race.seen.has('S') && race.seen.has('W')) {
+    race.last = race.t;
+    const rec = race.best == null || race.t < race.best;
+    if (rec) { race.best = race.t; store.set('raceBest', race.t); }
+    banner(rec ? 'NEW BEST LAP!' : 'LAP COMPLETE', `${fmtTime(race.t)}${rec ? '' : ' · best ' + fmtTime(race.best)}`, rec ? '#ffd36b' : '#6fbf4a', 2600);
+  } else if (!race.on) {
+    banner('GO, NUGGET, GO!', 'Lap timer started. Go all the way around!', '#ffd36b', 1800);
+  }
+  race.on = true; race.t = 0; race.seen = new Set(['N']);
+}
+
 // ---------- HUD ----------
 const PORTALS = [
-  { name: 'Survival', note: 'east portal', color: 'var(--p0)', pos: [53.5, 22.6, 32.5], stand: [48.5, 17, 32.5], yaw: Math.PI/2 },
-  { name: 'Build Battle', note: 'west portal', color: 'var(--p1)', pos: [11.5, 22.6, 32.5], stand: [16.5, 17, 32.5], yaw: -Math.PI/2 },
-  { name: 'Parkour', note: 'south portal', color: 'var(--p2)', pos: [32.5, 22.6, 53.5], stand: [32.5, 17, 48.5], yaw: 0 },
-  { name: 'Block Wars', note: 'north portal', color: 'var(--p3)', pos: [32.5, 22.6, 11.5], stand: [32.5, 17, 16.5], yaw: Math.PI },
+  { name: 'Survival', key: 'survival', mode: 1, note: 'mine · craft · find a diamond', color: 'var(--p0)', pos: [53.5, 22.6, 32.5] },
+  { name: 'Build Battle', key: 'build', mode: 2, note: '3 minutes · one theme', color: 'var(--p1)', pos: [11.5, 22.6, 32.5] },
+  { name: 'Parkour', key: 'parkour', mode: 3, note: 'race to the gold pad', color: 'var(--p2)', pos: [32.5, 22.6, 53.5] },
+  { name: 'Block Wars', key: 'wars', mode: 4, note: 'survive 3 waves', color: 'var(--p3)', pos: [32.5, 22.6, 11.5] },
 ];
 const chatEl = $('chat');
 function say(html, ms = 9000) {
@@ -355,97 +507,544 @@ function say(html, ms = 9000) {
   while (chatEl.children.length > 7) chatEl.firstChild.remove();
   setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, ms);
 }
+let warnText = '', warnAt = 0;
+function warn(msg) { const n = performance.now(); if (msg !== warnText || n - warnAt > 3000) { say(msg, 3500); warnText = msg; warnAt = n; } }
+let bannerT = 0;
+function banner(title, text, color, ms = 2600) {
+  $('toast').hidden = false; $('toastT').textContent = title; $('toastT').style.color = color || 'var(--gold)';
+  $('toastP').textContent = text; $('toastBar').parentElement.hidden = true; bannerT = ms / 1000;
+}
 const labels = $('labels');
 const portalLabels = PORTALS.map((p) => { const el = document.createElement('div'); el.className = 'label'; el.style.color = p.color; el.innerHTML = `${p.name.toUpperCase()}<small>walk in to join</small>`; labels.appendChild(el); return el; });
+const trackLabel = document.createElement('div'); trackLabel.className = 'label'; trackLabel.style.color = 'var(--gold)'; trackLabel.innerHTML = 'NUGGET RACEWAY<small>ride through to start a lap</small>'; labels.appendChild(trackLabel);
 const dogLabel = document.createElement('div'); dogLabel.className = 'label dog'; dogLabel.textContent = 'Nugget'; labels.appendChild(dogLabel);
 
-const SLOTS = [
-  { key: '1', tip: 'Game menu (E)', icon: 'compass', act: () => openMenu() },
-  { key: '2', tip: 'Whistle for Nugget (Q)', icon: 'whistle', act: () => whistle() },
-  { key: '3', tip: 'Ride Nugget (F)', icon: 'saddle', act: () => ride() },
-  { key: '4' }, { key: '5' }, { key: '6' }, { key: '7' }, { key: '8' },
-  { key: '9', tip: 'Back to spawn', icon: 'bed', act: () => { E.respawn_player(); yaw = 0; pitch = 0; say('Back at spawn.'); } },
-];
 function iconSVG(kind) {
   const px = {
     compass: ['....####....','..##rrrr##..','.#rrrrrrrr#.','.#rrr##rrr#.','#rrr#ww#rrr#','#rr#wwww#rr#','#rr#wwww#rr#','#rrr#ww#rrr#','.#rrr##rrr#.','.#rrrrrrrr#.','..##rrrr##..','....####....'],
     whistle: ['............','............','.....yyyyy..','....yYYYYYy.','...yYyyyyYy.','..yYyy..yYy.','.yYy.....yy.','yYy.........','yy..........','............','............','............'],
     saddle: ['............','..bb......bb','..bBb....bBb','..bBBbbbbBBb','..bBBBBBBBBb','...bBBBBBBb.','....bbbbbb..','.....s..s...','.....s..s...','....gg..gg..','............','............'],
     bed: ['............','............','ww..........','wwrrrrrrrrrr','wwrrrrrrrrrr','bbbbbbbbbbbb','b..........b','b..........b','............','............','............','............'],
+    pick: ['............','..cccccccc..','.cC..BB..Cc.','.C...BB...C.','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....bb.....','............'],
+    snow: ['............','....wwww....','...wwwwww...','..wwwwwwYw..','..wwwwwwYw..','..wwwwwYYw..','..wwwwYYYw..','...wYYYYw...','....wwww....','............','............','............'],
   }[kind];
-  const pal = { '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#d8d2c0', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a' };
+  const pal = { '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#bdb7a6', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a', c: '#b8c0c8', C: '#6c747c' };
   let r = '';
   px.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`; }));
   return `<svg class="ic" viewBox="0 0 12 12" shape-rendering="crispEdges">${r}</svg>`;
 }
+
+// ---------- hotbar ----------
 const hotbar = $('hotbar');
-let selected = 0;
-SLOTS.forEach((s, i) => {
-  const b = document.createElement('button'); b.className = 'slot' + (i === 0 ? ' on' : ''); b.id = 'slot' + i;
-  b.innerHTML = `<span class="k">${s.key}</span>${s.icon ? iconSVG(s.icon) : ''}${s.tip ? `<span class="tip">${s.tip}</span>` : ''}`;
-  b.setAttribute('aria-label', s.tip || 'Empty slot ' + s.key);
-  b.addEventListener('click', (e) => { e.stopPropagation(); pick(i); });
-  hotbar.appendChild(b);
-});
+let SLOTS = [], selected = 0;
+function slotHTML(s) {
+  let h = `<span class="k">${s.key}</span>`;
+  if (s.block) h += `<span class="blk" style="background:${blockCol(s.block)}"></span>`;
+  else if (s.icon) h += iconSVG(s.icon);
+  if (s.count != null) h += `<span class="n">${s.count}</span>`;
+  if (s.tip) h += `<span class="tip">${s.tip}</span>`;
+  return h;
+}
+function setHotbar(slots) {
+  const all = slots.slice(0, 9); while (all.length < 9) all.push({});
+  SLOTS = all.map((s, i) => ({ ...s, key: String(i + 1) }));
+  hotbar.innerHTML = '';
+  SLOTS.forEach((s, i) => {
+    const b = document.createElement('button'); b.className = 'slot';
+    b.innerHTML = b._h = slotHTML(s); b.setAttribute('aria-label', s.tip || 'Empty slot ' + s.key);
+    b.addEventListener('click', (e) => { e.stopPropagation(); pick(i); });
+    hotbar.appendChild(b);
+  });
+  pick(Math.min(selected, 8), true);
+}
+function refreshHotbar() {
+  [...hotbar.children].forEach((b, i) => { const h = slotHTML(SLOTS[i]); if (b._h !== h) { b.innerHTML = b._h = h; b.setAttribute('aria-label', SLOTS[i].tip || 'Empty slot ' + SLOTS[i].key); } });
+}
 function pick(i, quiet) {
   selected = i; [...hotbar.children].forEach((c, j) => c.classList.toggle('on', j === i));
-  if (!quiet && SLOTS[i].act) SLOTS[i].act();
+  if (!quiet && SLOTS[i] && SLOTS[i].act) SLOTS[i].act();
 }
+const LOBBY_SLOTS = [
+  { tip: 'Game menu (E)', icon: 'compass', act: () => openMenu() },
+  { tip: 'Whistle for Nugget (Q)', icon: 'whistle', act: () => whistle() },
+  { tip: 'Ride Nugget (F)', icon: 'saddle', act: () => ride() },
+  {}, {}, {}, {}, {},
+  { tip: 'Back to spawn', icon: 'bed', act: () => { E.respawn_player(); yaw = 0; pitch = 0; say('Back at spawn.'); } },
+];
+
+// ---------- dialogs ----------
+const LOBBY_BOARD = $('board').innerHTML;
+let lastBoard = '';
+function setBoard(html) { if (html !== lastBoard) { $('board').innerHTML = html; lastBoard = html; } }
+const row = (a, b, cls = '') => `<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`;
+const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('start').hidden;
+function releaseMouse() { try { document.exitPointerLock(); } catch (e) {} }
+function lockMouse() { if (coarse) return; try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 
 const gamesEl = $('games');
 PORTALS.forEach((p, i) => {
   const b = document.createElement('button'); b.className = 'game';
   b.innerHTML = `<i style="background:${p.color}"></i><span>${p.name}</span><em>${p.note}</em>`;
-  b.addEventListener('click', () => { const s = p.stand; E.set_player(s[0], s[1], s[2]); yaw = p.yaw; pitch = 0; closeMenu(); say(`Teleported to the <b>${p.name}</b> portal.`); });
+  b.addEventListener('click', () => { closeMenu(); startJoin(i); lockMouse(); });
   gamesEl.appendChild(b);
 });
-function openMenu() { $('menu').hidden = false; try { document.exitPointerLock(); } catch (e) {} }
+function openMenu() {
+  const inGame = scene !== 'lobby';
+  $('menuGame').hidden = !inGame; $('menuPick').hidden = inGame;
+  if (inGame) $('menuTitle').textContent = GAMES[scene].title + ' · PAUSED';
+  $('menuFinish').hidden = scene !== 'build';
+  $('menuClose').textContent = inGame ? 'RESUME' : 'BACK TO LOBBY';
+  $('menu').hidden = false; releaseMouse();
+}
 function closeMenu() { $('menu').hidden = true; }
-$('menuClose').addEventListener('click', closeMenu);
+$('menuClose').addEventListener('click', () => { closeMenu(); lockMouse(); });
+$('menuFinish').addEventListener('click', () => { closeMenu(); if (scene === 'build' && G && !G.over) Build.finish(); });
+$('menuRestart').addEventListener('click', () => { closeMenu(); loadGame(gameIdx); lockMouse(); });
+$('menuLobby').addEventListener('click', () => { closeMenu(); toLobby(); lockMouse(); });
+function showResult(title, color, sub, lines) {
+  if (G) G.over = true;
+  $('resT').textContent = title; $('resT').style.color = color;
+  $('resB').innerHTML = (sub ? `<p>${sub}</p>` : '') + lines.map(([a, b]) => `<div class="line"><span>${a}</span><span>${b}</span></div>`).join('');
+  $('result').hidden = false; $('toast').hidden = true; releaseMouse();
+}
+$('resAgain').addEventListener('click', () => { $('result').hidden = true; loadGame(gameIdx); lockMouse(); });
+$('resLobby').addEventListener('click', () => { $('result').hidden = true; toLobby(); lockMouse(); });
 
 let lastWhistle = 0;
 function whistle() {
+  if (scene !== 'lobby') return;
   if (E.is_riding()) { say('Nugget is already under you!'); return; }
   E.dog_call(); const now = performance.now();
   if (now - lastWhistle > 1500) say('<b>You</b> whistled. <b>Nugget</b> is on the way!');
   lastWhistle = now;
 }
 function ride() {
+  if (scene !== 'lobby') return;
   const r = E.toggle_ride();
-  if (r === 1) { say('You hopped on <b>Nugget</b>. Hold Shift for TURBO, Space jumps 3 blocks!'); }
-  else if (r === 0) { say('You hopped off. Nugget sits and wags.'); }
+  if (r === 1) { say('You hopped on <b>Nugget</b>. Hold Shift for TURBO, Space jumps 3 blocks!'); say('Ride through the checkered arch to race a lap!', 6000); }
+  else if (r === 0) { say('You hopped off. Nugget sits and wags.'); race.on = false; }
   else { say('Get closer to Nugget to ride. Press Q to whistle him over.'); }
+}
+
+// ---------- shared game helpers ----------
+let scene = 'lobby', G = null, gameIdx = -1, curEye = [32.5, 18.6, 24.5], curDir = [0, 0, 1];
+function aim(reach) {
+  const id = E.raycast(curEye[0], curEye[1], curEye[2], curDir[0], curDir[1], curDir[2], reach);
+  if (!id) return null;
+  return { id, x: E.hit_x(), y: E.hit_y(), z: E.hit_z(), nx: E.hit_nx(), ny: E.hit_ny(), nz: E.hit_nz() };
+}
+function tryPlace(id, allow) {
+  const h = aim(6); if (!h || !id) return null;
+  const x = h.x + h.nx, y = h.y + h.ny, z = h.z + h.nz;
+  if (x < 0 || x > 63 || z < 0 || z > 63 || y < 0 || y > 39) return null;
+  const cur = E.get_block(x, y, z); if (cur && cur !== 4) return null;
+  if (allow && !allow(x, y, z)) return null;
+  if (E.player_overlaps(x, y, z)) return null;
+  setBlock(x, y, z, id); return { x, y, z };
+}
+
+// ---------- SURVIVAL ----------
+const TOOLS = ['Bare hands', 'Wooden pickaxe', 'Stone pickaxe', 'Iron pickaxe'];
+const TOOL_SPEED = [1, 2, 3, 4.2];
+const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [1.8, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [6, 3] };
+const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'iron', 19: 'gold', 20: 'diamond' };
+const ITEM = { coal: 'Coal', iron: 'Iron', gold: 'Gold', diamond: 'Diamond' };
+const RECIPES = [
+  { name: '4 Planks', need: { 5: 1 }, block: 7, make: () => Survival.add(7, 4) },
+  { name: 'Wooden pickaxe', need: { 7: 3 }, tool: 1 },
+  { name: 'Stone pickaxe', need: { 9: 3, 7: 2 }, tool: 2 },
+  { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3 },
+  { name: 'Gold block', need: { gold: 4 }, block: 10, make: () => Survival.add(10, 1) },
+];
+const have = (k) => isNaN(k) ? G.items[k] : (G.inv[k] || 0);
+const canCraft = (r) => !(r.tool && G.tool >= r.tool) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
+const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : BLOCK[k][0]}`).join(' + ');
+function openCraft() { if (scene !== 'survival' || !G || G.over) return; renderCraft(); $('craft').hidden = false; releaseMouse(); }
+function closeCraft() { $('craft').hidden = true; }
+$('craftClose').addEventListener('click', () => { closeCraft(); lockMouse(); });
+function renderCraft() {
+  const el = $('recipes'); el.innerHTML = '';
+  RECIPES.forEach((r) => {
+    const b = document.createElement('button'); b.className = 'game';
+    const done = r.tool && G.tool >= r.tool;
+    b.disabled = !canCraft(r);
+    b.innerHTML = `<i style="background:${r.tool ? '#b8c0c8' : blockCol(r.block)}"></i><span>${r.name}</span><em>${done ? 'crafted ✓' : needText(r)}</em>`;
+    b.addEventListener('click', () => {
+      if (!canCraft(r)) return;
+      for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
+      if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); } else r.make();
+      Survival.hot(); renderCraft();
+    });
+    el.appendChild(b);
+  });
+}
+const GOALS = [
+  ['Craft a wooden pickaxe', () => G.tool >= 1],
+  ['Craft a stone pickaxe', () => G.tool >= 2],
+  ['Mine 3 iron', () => G.ironMined >= 3],
+  ['Craft an iron pickaxe', () => G.tool >= 3],
+  ['Mine a diamond', () => G.items.diamond >= 1],
+];
+const Survival = {
+  title: 'SURVIVAL', yaw: 0, outline: true, use: 'MINE',
+  init() {
+    G = { t: 0, inv: {}, order: [], items: { coal: 0, iron: 0, gold: 0, diamond: 0 }, ironMined: 0, tool: 0, mine: null, done: GOALS.map(() => false) };
+    this.hot();
+    say('<b>Survival</b>: hold click on a tree to get logs, then press <b>C</b> to craft.', 15000);
+    say('Craft better pickaxes, dig deep, and mine a <b>diamond</b> to win!', 15000);
+    say('<b>Right-click</b> places the block in your hand.', 15000);
+  },
+  add(id, n) { if (!G.order.includes(id)) G.order.push(id); G.inv[id] = (G.inv[id] || 0) + n; this.hot(); },
+  hot() {
+    G.order = G.order.filter((id) => G.inv[id] > 0);
+    const s = G.order.slice(0, 8).map((id) => ({ block: id, count: G.inv[id], tip: BLOCK[id][0] }));
+    while (s.length < 8) s.push({});
+    s.push({ icon: 'pick', tip: 'Crafting (C)', act: () => openCraft() });
+    setHotbar(s);
+  },
+  primary(dt, held) {
+    $('minebar').hidden = true;
+    if (!held) { G.mine = null; return; }
+    const h = aim(5); if (!h) { G.mine = null; return; }
+    if (h.y === 0) return warn('That is the bottom of the world. It will not break.');
+    const hd = HARD[h.id] || [1, 0];
+    if (G.tool < hd[1]) { G.mine = null; return warn(`Too hard! You need a <b>${TOOLS[hd[1]]}</b>. Press <b>C</b> to craft.`); }
+    const key = h.x + ',' + h.y + ',' + h.z;
+    if (!G.mine || G.mine.key !== key) G.mine = { key, t: 0, need: hd[0] / TOOL_SPEED[G.tool] };
+    G.mine.t += dt;
+    $('minebar').hidden = false; $('minebar').firstChild.style.width = Math.min(100, G.mine.t / G.mine.need * 100) + '%';
+    if (G.mine.t < G.mine.need) return;
+    setBlock(h.x, h.y, h.z, 0); G.mine = null; $('minebar').hidden = true;
+    const d = DROP[h.id] ?? h.id;
+    if (typeof d === 'string') { G.items[d]++; if (d === 'iron') G.ironMined++; say(`+1 <b>${ITEM[d]}</b>`, 3500); }
+    else this.add(d, 1);
+  },
+  secondary() {
+    const id = G.order[selected];
+    if (selected > 7 || !id || !G.inv[id]) return warn('Pick a block slot (1–8) to place it.');
+    if (tryPlace(id)) { G.inv[id]--; this.hot(); }
+  },
+  update(dt) {
+    G.t += dt;
+    GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) banner('GOAL COMPLETE', name, '#6fbf4a', 2400); } });
+    if (G.done[GOALS.length - 1]) {
+      const best = store.get('survivalBest'); const rec = best == null || G.t < best; if (rec) store.set('survivalBest', G.t);
+      showResult('YOU FOUND A DIAMOND!', '#59f2f2', 'You beat Survival.', [
+        ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')], ['Best', fmtTime(rec ? G.t : best)],
+        ['Coal mined', G.items.coal], ['Iron mined', G.ironMined], ['Gold held', G.items.gold],
+      ]);
+    }
+  },
+  board() {
+    return `<h2>SURVIVAL</h2>${row('Time', fmtTime(G.t))}${row('Tool', TOOLS[G.tool])}<hr>`
+      + GOALS.map(([n], i) => row((G.done[i] ? '✓ ' : '☐ ') + n, '', G.done[i] ? 'done' : '')).join('')
+      + `<hr>${row('Coal', G.items.coal)}${row('Iron', G.items.iron)}${row('Gold', G.items.gold)}${row('Diamond', G.items.diamond)}`;
+  },
+};
+
+// ---------- BUILD BATTLE ----------
+const THEMES = ['Treehouse', 'Rocket ship', 'Castle', 'Giant cake', 'Dragon', 'Robot', 'Lighthouse', 'Pirate ship', 'Rainbow bridge', 'Snowman', 'Volcano', 'Dream house', 'Ice cream cone', 'Race car', 'Haunted house', 'Giant mushroom', 'Nugget statue', 'Hot air balloon'];
+const PAL = [[23, 24, 25, 26, 27, 28, 29, 30, 7], [1, 3, 8, 9, 5, 6, 12, 10, 11]];
+const inPlot = (x, y, z) => Math.hypot(x + 0.5 - 32, z + 0.5 - 32) <= 18.5 && y >= 17 && y <= 38;
+const Build = {
+  title: 'BUILD BATTLE', yaw: 0, outline: true, use: 'BREAK',
+  init() {
+    const base = new Set();
+    for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) for (let y = 17; y <= 38; y++) if (inPlot(x, y, z) && E.get_block(x, y, z)) base.add(x + ',' + y + ',' + z);
+    G = { t: 180, theme: THEMES[Math.floor(Math.random() * THEMES.length)], page: 0, base, rep: 0 };
+    this.hot();
+    banner('Theme: ' + G.theme, 'You have 3 minutes. Build inside the stone ring!', '#33d9cc', 4500);
+    say(`<b>Build Battle</b> theme: <b>${G.theme}</b>`, 15000);
+    say('<b>Right-click</b> to place · <b>click</b> to break · <b>R</b> swaps palettes.', 15000);
+    say('Hold <b>Space</b> to fly up. Done early? Menu (E) → Finish &amp; judge.', 15000);
+  },
+  hot() { setHotbar(PAL[G.page].map((id) => ({ block: id, tip: BLOCK[id][0] }))); },
+  page() { G.page = 1 - G.page; this.hot(); say(G.page ? 'Palette 2: nature & stone' : 'Palette 1: wool colors', 2500); },
+  primary(dt, held, pressed) {
+    if (!held) { G.rep = 0; return; }
+    G.rep -= dt; if (!pressed && G.rep > 0) return; G.rep = 0.2;
+    const h = aim(7); if (!h) return;
+    if (!inPlot(h.x, h.y, h.z)) return warn('You can only break blocks inside your plot.');
+    setBlock(h.x, h.y, h.z, 0);
+  },
+  secondary() { tryPlace(PAL[G.page][selected], (x, y, z) => inPlot(x, y, z) || (warn('Build inside the stone ring!'), false)); },
+  update(dt) {
+    G.t -= dt;
+    if ((keys.Space || touchJump) && E.player_y() < 36) E.player_push(0, 6, 0);
+    if (G.t <= 0) this.finish();
+  },
+  finish() {
+    let n = 0, maxY = 16, minX = 99, maxX = -1, minZ = 99, maxZ = -1; const ids = new Set();
+    for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) for (let y = 17; y <= 38; y++) {
+      if (!inPlot(x, y, z) || G.base.has(x + ',' + y + ',' + z)) continue;
+      const b = E.get_block(x, y, z); if (!b) continue;
+      n++; ids.add(b); maxY = Math.max(maxY, y); minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    }
+    const k = ids.size, h = maxY - 16, span = n ? Math.max(maxX - minX, maxZ - minZ) + 1 : 0;
+    const s1 = n ? clamp10(1 + Math.sqrt(n) * 0.9) : 1;
+    const s2 = n ? clamp10(1 + k * 1.3 + (k >= 3 ? 1 : 0)) : 1;
+    const s3 = n ? clamp10(1 + h * 0.8 + Math.min(3, span / 4)) : 1;
+    const total = s1 + s2 + s3, best = store.get('buildBest'), rec = best == null || total > best;
+    if (rec) store.set('buildBest', total);
+    const verdict = !n ? 'The judges could not find your build!' : total >= 26 ? 'LEGENDARY! The judges are speechless.' : total >= 20 ? 'Amazing build!' : total >= 13 ? 'Nice work! Keep going bigger.' : 'A good start. Try more blocks and colors!';
+    showResult('JUDGING: ' + G.theme.toUpperCase(), '#33d9cc', verdict, [
+      ['Blocks placed', n], ['Colors / types', k], ['Height', h + ' blocks'],
+      ['Judge Brick (size)', s1 + '/10'], ['Judge Pixel (color)', s2 + '/10'], ['Judge Skye (shape)', s3 + '/10'],
+      ['TOTAL', total + '/30' + (rec ? ' (new best!)' : ' · best ' + best)],
+    ]);
+  },
+  board() {
+    return `<h2>BUILD BATTLE</h2><div class="big">${G.theme}</div>${row('Time left', fmtTime(Math.max(0, G.t)))}${row('Palette', (G.page + 1) + ' of 2 (R)')}<hr>${row('Click', 'break')}${row('Right-click', 'place')}${row('Space', 'fly up')}`;
+  },
+};
+
+// ---------- PARKOUR ----------
+const Parkour = {
+  title: 'PARKOUR', yaw: 0, outline: false, use: '',
+  init() {
+    G = { t: 0, started: false, done: false, cps: [], falls: 0, start: [E.player_x(), E.player_y(), E.player_z()], best: store.get('parkourBest') };
+    setHotbar([{ icon: 'bed', tip: 'Back to checkpoint', act: () => { E.respawn_player(); } }]);
+    say('<b>Parkour</b>: jump across the floating blocks to the <b>gold pad</b>.', 15000);
+    say('Green pads are checkpoints. The clock starts when you leave the start pad. Sprint with Shift!', 15000);
+  },
+  update(dt, ret) {
+    const x = E.player_x(), y = E.player_y(), z = E.player_z();
+    if (!G.started && Math.hypot(x - G.start[0], z - G.start[2]) > 1.8) { G.started = true; say('The clock is running!', 3000); }
+    if (G.started) G.t += dt;
+    if (ret === -1) { G.falls++; say(G.cps.length ? 'Splat! Back to your checkpoint.' : 'Splat! Back to the start.', 2500); }
+    if (!E.player_on_ground()) return;
+    const bb = E.block_below();
+    if (bb === 22 && [G.start, ...G.cps].every((p) => Math.hypot(p[0] - x, p[1] - y, p[2] - z) > 4)) {
+      G.cps.push([x, y, z]); E.set_spawn(x, y, z);
+      banner(`CHECKPOINT ${G.cps.length}`, 'You will respawn here if you fall.', '#6fbf4a', 1800);
+    }
+    if (bb === 21 && G.started) {
+      const rec = G.best == null || G.t < G.best; if (rec) store.set('parkourBest', G.t);
+      showResult('COURSE COMPLETE!', '#ff8f26', rec ? 'New personal best!' : 'Nice run!', [
+        ['Time', fmtTime(G.t)], ['Best', fmtTime(rec ? G.t : G.best)], ['Falls', G.falls], ['Checkpoints', G.cps.length],
+      ]);
+    }
+  },
+  board() {
+    return `<h2>PARKOUR</h2><div class="big">${fmtTime(G.t)}</div>${row('Checkpoints', G.cps.length)}${row('Falls', G.falls)}${row('Best', G.best == null ? '—' : fmtTime(G.best))}<hr>${row('Goal', 'gold pad')}`;
+  },
+};
+
+// ---------- BLOCK WARS ----------
+const CORNERS = [[15.5, 15.5], [49.5, 15.5], [15.5, 49.5], [49.5, 49.5]];
+const WAVES = [3, 5, 7];
+const Wars = {
+  title: 'BLOCK WARS', yaw: 0, outline: false, use: 'THROW',
+  init() {
+    G = { hp: 10, bots: [], balls: [], queue: [], wave: 0, state: 'wait', pause: 3.5, kills: 0, bricks: 24, placed: new Set(), cool: 0, regen: 0, t: 0 };
+    setHotbar([{ icon: 'snow', tip: 'Snowball blaster (click)' }, { block: 8, tip: 'Stone bricks (right-click)', count: G.bricks }]);
+    banner('BLOCK WARS', 'Wave 1 starts in 3 seconds. Click to throw snowballs!', '#ff5280', 3200);
+    say('<b>Block Wars</b>: Blockers are coming! <b>Click</b> to throw snowballs.', 15000);
+    say('<b>Right-click</b> to build brick walls. Blockers smash walls, so keep moving!', 15000);
+    say('Survive all 3 waves to win.', 15000);
+  },
+  hot() { SLOTS[1].count = G.bricks; refreshHotbar(); },
+  primary(dt, held) {
+    if (!held || G.cool > 0) return;
+    G.cool = 0.28;
+    G.balls.push({ x: curEye[0] + curDir[0] * 0.6, y: curEye[1] + curDir[1] * 0.6 - 0.1, z: curEye[2] + curDir[2] * 0.6, vx: curDir[0] * 30, vy: curDir[1] * 30 + 1.5, vz: curDir[2] * 30, t: 0 });
+  },
+  secondary() {
+    if (G.bricks <= 0) return warn('Out of bricks! You get 16 more after each wave.');
+    const p = tryPlace(8); if (p) { G.bricks--; G.placed.add(p.x + ',' + p.y + ',' + p.z); this.hot(); }
+  },
+  hurt(n, dx, dz) {
+    G.hp = Math.max(0, G.hp - n); G.regen = 0;
+    E.player_push(dx * 7, 5, dz * 7);
+    $('hurt').style.opacity = '1'; setTimeout(() => { $('hurt').style.opacity = '0'; }, 160);
+    if (G.hp <= 0) showResult('KNOCKED OUT!', '#ff5280', 'The Blockers got you. Try building walls and keep moving!', [['Wave reached', G.wave + ' of 3'], ['Blockers knocked out', G.kills], ['Time', fmtTime(G.t)]]);
+  },
+  startWave() {
+    G.wave++; G.state = 'fight';
+    const n = WAVES[G.wave - 1];
+    for (let i = 0; i < n; i++) G.queue.push({ delay: 0.3 + i * 0.9, boss: G.wave === 3 && i === n - 1 });
+    banner('WAVE ' + G.wave, G.wave === 3 ? 'The Big Blocker is coming!' : n + ' Blockers incoming!', '#ff5280', 2200);
+  },
+  spawn(boss) {
+    const c = CORNERS[Math.floor(Math.random() * 4)], x = c[0] + (Math.random() - 0.5) * 2, z = c[1] + (Math.random() - 0.5) * 2;
+    const y = Math.max(17, E.ground_at(x, 30, z));
+    G.bots.push({ x, y, z, vy: 0, kx: 0, kz: 0, hp: boss ? 8 : 2, max: boss ? 8 : 2, s: boss ? 1.5 : 1, boss, speed: boss ? 2.4 : 2.2 + G.wave * 0.35, yaw: 0, cool: 0.6, stuck: 0, hit: 0, ground: true, phase: Math.random() * 6 });
+  },
+  botStep(b, dt) {
+    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+    let dx = px - b.x, dz = pz - b.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+    b.yaw = Math.atan2(dx, dz); b.hit = Math.max(0, b.hit - dt); b.phase += dt * b.speed * 3;
+    const damp = Math.pow(0.03, dt); b.kx *= damp; b.kz *= damp;
+    const walk = d > 0.9 ? b.speed : 0;
+    const vx = dx * walk + b.kx, vz = dz * walk + b.kz;
+    const free = (x, z, y) => !E.solid_at(x, y + 0.2, z) && !E.solid_at(x, y + 1.2, z) && (b.s < 1.2 || !E.solid_at(x, y + 2.2, z));
+    let moved = false;
+    const tryAxis = (nx, nz, lx, lz) => {
+      if (free(lx, lz, b.y)) { b.x = nx; b.z = nz; moved = true; return true; }
+      if (b.ground && free(lx, lz, b.y + 1) && !E.solid_at(b.x, b.y + 2.4 * b.s, b.z)) { b.vy = 7; b.ground = false; }
+      return false;
+    };
+    const nx = b.x + vx * dt, nz = b.z + vz * dt, r = 0.32 * b.s;
+    tryAxis(nx, b.z, nx + Math.sign(vx) * r, b.z);
+    tryAxis(b.x, nz, b.x, nz + Math.sign(vz) * r);
+    // stuck behind a player wall: smash it
+    if (!moved && walk > 0) b.stuck += dt; else b.stuck = Math.max(0, b.stuck - dt);
+    if (b.stuck > 1.1) {
+      b.stuck = 0;
+      const fx = Math.floor(b.x + dx * (r + 0.6)), fz = Math.floor(b.z + dz * (r + 0.6));
+      for (let yy = Math.floor(b.y); yy <= Math.floor(b.y + 1.8 * b.s); yy++) {
+        const key = fx + ',' + yy + ',' + fz;
+        if (G.placed.has(key)) { G.placed.delete(key); setBlock(fx, yy, fz, 0); }
+      }
+    }
+    b.vy -= 22 * dt; b.y += b.vy * dt;
+    const g = E.ground_at(b.x, b.y + 0.45, b.z);
+    if (b.y <= g) { b.y = g; b.vy = 0; b.ground = true; } else b.ground = false;
+    if (b.y < -5) { b.dead = true; return; }
+    if (d < 1.2 * b.s && Math.abs(py - b.y) < 1.7) {
+      b.cool -= dt;
+      if (b.cool <= 0) { b.cool = 1; this.hurt(b.boss ? 2 : 1, dx, dz); }
+    } else b.cool = Math.max(b.cool, 0.4);
+  },
+  update(dt) {
+    G.t += dt; G.cool -= dt;
+    if (G.state === 'wait') { G.pause -= dt; if (G.pause <= 0) this.startWave(); }
+    for (const q of G.queue) { q.delay -= dt; if (q.delay <= 0) { q.done = true; this.spawn(q.boss); } }
+    G.queue = G.queue.filter((q) => !q.done);
+    for (const b of G.bots) { this.botStep(b, dt); if (G.over) return; }
+    for (const s of G.balls) {
+      for (let k = 0; k < 3 && !s.dead; k++) {
+        const h = dt / 3; s.vy -= 9 * h; s.x += s.vx * h; s.y += s.vy * h; s.z += s.vz * h;
+        if (E.solid_at(s.x, s.y, s.z)) { s.dead = true; break; }
+        for (const b of G.bots) {
+          const r = 0.45 * b.s;
+          if (!b.dead && Math.abs(s.x - b.x) < r && Math.abs(s.z - b.z) < r && s.y > b.y && s.y < b.y + 1.9 * b.s) {
+            b.hp--; b.hit = 0.18; b.kx = s.vx * 0.22 / b.s; b.kz = s.vz * 0.22 / b.s; s.dead = true;
+            if (b.hp <= 0) { b.dead = true; G.kills++; say(b.boss ? 'You knocked out the <b>Big Blocker</b>!' : 'Blocker knocked out!', 2500); }
+            break;
+          }
+        }
+      }
+      s.t += dt; if (s.t > 3 || s.y < -5) s.dead = true;
+    }
+    G.balls = G.balls.filter((s) => !s.dead); G.bots = G.bots.filter((b) => !b.dead);
+    G.regen += dt; if (G.regen > 5 && G.hp < 10) { G.hp++; G.regen = 0; }
+    if (G.state === 'fight' && !G.queue.length && !G.bots.length) {
+      if (G.wave >= 3) {
+        const best = store.get('warsBest'); const rec = best == null || G.t < best; if (rec) store.set('warsBest', G.t);
+        showResult('VICTORY!', '#ffd36b', 'You survived every wave of Blockers!', [['Blockers knocked out', G.kills], ['Hearts left', G.hp + ' of 10'], ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')]]);
+      } else {
+        G.state = 'wait'; G.pause = 4.5; G.bricks += 16; this.hot();
+        banner(`WAVE ${G.wave} CLEARED!`, `+16 bricks. Wave ${G.wave + 1} in 4 seconds…`, '#6fbf4a', 3200);
+      }
+    }
+  },
+  board() {
+    const hearts = '♥'.repeat(G.hp) + '<span style="opacity:.3">' + '♥'.repeat(10 - G.hp) + '</span>';
+    return `<h2>BLOCK WARS</h2><div class="big" style="color:#ff5280">${hearts}</div>${row('Wave', Math.max(1, G.wave) + ' of 3')}${row('Blockers left', G.bots.length + G.queue.length)}${row('Knocked out', G.kills)}${row('Bricks', G.bricks)}`;
+  },
+  draw(V, I) {
+    for (const b of G.bots) {
+      const o = [b.x, b.y, b.z], s = b.s, f = b.hit > 0;
+      const body = f ? [1, 1, 1] : b.boss ? [0.5, 0.12, 0.6] : [0.82, 0.2, 0.22];
+      const dark = f ? [1, 1, 1] : b.boss ? [0.3, 0.06, 0.38] : [0.5, 0.1, 0.12];
+      const skin = f ? [1, 1, 1] : [0.95, 0.78, 0.6];
+      const sw = Math.sin(b.phase) * 0.18 * s;
+      pushBox(V, I, o, [0.13 * s, 0.35 * s, sw], [0.1 * s, 0.35 * s, 0.1 * s], dark, b.yaw);
+      pushBox(V, I, o, [-0.13 * s, 0.35 * s, -sw], [0.1 * s, 0.35 * s, 0.1 * s], dark, b.yaw);
+      pushBox(V, I, o, [0, 1.02 * s, 0], [0.26 * s, 0.32 * s, 0.15 * s], body, b.yaw);
+      pushBox(V, I, o, [0.36 * s, 1.0 * s, -sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
+      pushBox(V, I, o, [-0.36 * s, 1.0 * s, sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
+      pushBox(V, I, o, [0, 1.58 * s, 0], [0.22 * s, 0.22 * s, 0.22 * s], skin, b.yaw);
+      pushBox(V, I, o, [0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
+      pushBox(V, I, o, [-0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
+      if (b.boss) pushBox(V, I, o, [0, 1.86 * s, 0], [0.2 * s, 0.06 * s, 0.2 * s], [1, 0.82, 0.35], b.yaw, 3);
+      // health bar
+      const w = 0.4 * s, frac = b.hp / b.max;
+      pushBox(V, I, o, [0, 2.15 * s, 0], [w, 0.05, 0.02], [0.15, 0.15, 0.15], b.yaw);
+      pushBox(V, I, o, [-w + w * frac, 2.15 * s, 0.025], [w * frac, 0.045, 0.01], [0.3, 0.9, 0.3], b.yaw, 3);
+    }
+    for (const sb of G.balls) pushBox(V, I, [sb.x, sb.y, sb.z], [0, 0, 0], [0.1, 0.1, 0.1], [0.95, 0.97, 1], 0, 3);
+  },
+};
+const GAMES = { survival: Survival, build: Build, parkour: Parkour, wars: Wars };
+
+// ---------- scene switching ----------
+function loadWorld(mode) {
+  if (E.is_riding()) E.toggle_ride();
+  if (mode === 0) { E.generate(20261108); buildLobbyExtras(); } else E.generate_scene(mode, 20261108);
+  E.respawn_player(); uploadWorld(); worldDirty = false;
+}
+function resetHud() {
+  $('minebar').hidden = true; $('prompt').hidden = true; $('ridebar').hidden = true;
+  closeMenu(); closeCraft(); $('result').hidden = true; mouseHeld = false; touchUse = false;
+  chatEl.innerHTML = ''; bannerT = 0; if (!joining) $('toast').hidden = true;
+}
+function loadGame(i) {
+  const p = PORTALS[i], game = GAMES[p.key];
+  scene = p.key; gameIdx = i; G = null; lastBoard = '';
+  resetHud(); loadWorld(p.mode);
+  yaw = game.yaw; pitch = -0.05; selected = 0;
+  game.init(); updateTouch();
+}
+function toLobby() {
+  scene = 'lobby'; G = null; gameIdx = -1; race.on = false; race.prevX = null;
+  resetHud(); loadWorld(0);
+  yaw = 0; pitch = -0.05; selected = 0;
+  $('board').innerHTML = LOBBY_BOARD; lastBoard = '';
+  setHotbar(LOBBY_SLOTS); updateTouch();
+  say('Back in the lobby.', 4000);
+}
+let joining = null;
+function startJoin(i) {
+  if (joining) return;
+  const p = PORTALS[i];
+  joining = { i, t: 0 };
+  $('toast').hidden = false; $('toastT').textContent = `Joining ${p.name}…`; $('toastT').style.color = p.color;
+  $('toastP').textContent = p.note; $('toastBar').parentElement.hidden = false; $('toastBar').style.width = '0%';
 }
 
 // ---------- input ----------
 const keys = {};
 let yaw = 0, pitch = -0.05, playing = false;
-let joy = { x: 0, y: 0 }, touchJump = false, touchSprint = false;
+let joy = { x: 0, y: 0 }, touchJump = false, touchSprint = false, touchUse = false, mouseHeld = false, lastHeld = false;
 addEventListener('keydown', (e) => {
   if (!playing) return;
   keys[e.code] = true;
-  if (e.code === 'KeyE') { $('menu').hidden ? openMenu() : closeMenu(); }
+  if (e.code === 'KeyE' && $('result').hidden && $('craft').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
+  if (e.code === 'KeyC' && scene === 'survival' && $('menu').hidden && $('result').hidden) { $('craft').hidden ? openCraft() : (closeCraft(), lockMouse()); }
+  if (e.code === 'KeyR' && scene === 'build' && G && !G.over && !anyDialog()) Build.page();
   if (e.code === 'KeyQ') whistle();
-  if (e.code === 'KeyF') ride();
-  if (/^Digit[1-9]$/.test(e.code)) pick(+e.code.slice(5) - 1);
-  if (['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyF' && !anyDialog()) ride();
+  if (/^Digit[1-9]$/.test(e.code) && !anyDialog()) pick(+e.code.slice(5) - 1);
+  if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseHeld = false; });
 let dragging = false;
-canvas.addEventListener('mousedown', () => {
-  if (!playing || !$('menu').hidden) return;
-  dragging = true;
-  try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+const secondary = () => { if (scene !== 'lobby' && G && !G.over && GAMES[scene].secondary) GAMES[scene].secondary(); };
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('mousedown', (e) => {
+  if (!playing || anyDialog()) return;
+  if (e.button === 2) { secondary(); return; }
+  if (e.button !== 0) return;
+  dragging = true; if (scene !== 'lobby') mouseHeld = true;
+  lockMouse();
 });
-addEventListener('mouseup', () => { dragging = false; });
+addEventListener('mouseup', (e) => { if (e.button === 0) { dragging = false; mouseHeld = false; } });
 addEventListener('mousemove', (e) => {
   if (!playing) return;
   if (document.pointerLockElement === canvas || dragging) { yaw -= e.movementX * 0.0025; pitch -= e.movementY * 0.0025; pitch = Math.max(-1.5, Math.min(1.5, pitch)); }
 });
-addEventListener('wheel', (e) => { if (!playing) return; pick((selected + (e.deltaY > 0 ? 1 : 8)) % 9, true); }, { passive: true });
+addEventListener('wheel', (e) => { if (!playing || anyDialog()) return; pick((selected + (e.deltaY > 0 ? 1 : 8)) % 9, true); }, { passive: true });
 
 const coarse = matchMedia('(pointer: coarse)').matches;
+function updateTouch() {
+  if (!coarse) return;
+  const g = scene !== 'lobby', act = g && scene !== 'parkour';
+  $('tride').hidden = g; $('tuse').hidden = !act; $('tplace').hidden = !act;
+  if (act) { $('tuse').textContent = GAMES[scene].use; $('tplace').textContent = scene === 'wars' ? 'WALL' : 'PLACE'; }
+}
 if (coarse) {
   const stick = $('stick'), knob = stick.querySelector('i'); let sid = null;
   stick.addEventListener('pointerdown', (e) => { sid = e.pointerId; stick.setPointerCapture(sid); move(e); });
@@ -454,8 +1053,9 @@ if (coarse) {
   const end = (e) => { if (e.pointerId !== sid) return; sid = null; joy = { x: 0, y: 0 }; knob.style.transform = ''; };
   stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
   const hold = (id, set) => { const b = $(id); b.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); }); b.addEventListener('pointerup', () => set(false)); b.addEventListener('pointercancel', () => set(false)); b.addEventListener('pointerleave', () => set(false)); };
-  hold('tjump', (v) => touchJump = v); hold('tsprint', (v) => touchSprint = v);
+  hold('tjump', (v) => touchJump = v); hold('tsprint', (v) => touchSprint = v); hold('tuse', (v) => touchUse = v);
   $('tride').addEventListener('click', ride);
+  $('tplace').addEventListener('click', secondary);
   let lookId = null, lx = 0, ly = 0;
   canvas.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch' || lookId !== null) return; lookId = e.pointerId; lx = e.clientX; ly = e.clientY; });
   canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== lookId) return; yaw -= (e.clientX - lx) * 0.006; pitch -= (e.clientY - ly) * 0.006; pitch = Math.max(-1.5, Math.min(1.5, pitch)); lx = e.clientX; ly = e.clientY; });
@@ -465,25 +1065,50 @@ if (coarse) {
 
 $('play').addEventListener('click', () => {
   $('start').hidden = true; playing = true; $('crosshair').hidden = false;
-  if (coarse) $('touch').hidden = false;
-  else { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+  if (coarse) { $('touch').hidden = false; updateTouch(); }
+  else lockMouse();
   say('Welcome to <b>Class Block Game</b>!', 12000);
   say('Walk into a portal to join a game, or press <b>E</b> for the menu.', 12000);
-  say('<b>Nugget</b> the dog is doing laps around the fountain. Walk up and press <b>F</b> to ride!', 14000);
+  say('Ride <b>Nugget</b> (F) around the <b>Nugget Raceway</b> and set a best lap!', 14000);
 });
 
-// ---------- portal joining ----------
-let joining = null;
-function joinPortal(i) {
-  if (joining) return;
-  const p = PORTALS[i - 1];
-  joining = { p, t: 0 };
-  $('toast').hidden = false; $('toastT').textContent = `Joining ${p.name}…`; $('toastT').style.color = p.color;
-  $('toastP').textContent = 'Finding a server for your class.';
-  $('toastBar').style.width = '0%';
+// ---------- extra geometry: bots, snowballs, block outline ----------
+function pushBox(V, I, o, c, h, col, yaw = 0, mat = 0) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  for (let f = 0; f < 6; f++) {
+    const n = FACES[f], a = n.findIndex((v) => v !== 0), u = (a + 1) % 3, v = (a + 2) % 3, base = V.length / 9;
+    const wn = [n[0] * cy + n[2] * sy, n[1], -n[0] * sy + n[2] * cy];
+    const shade = wn[1] > 0.6 ? 1 : wn[1] < -0.6 ? 0.55 : 0.68 + 0.14 * Math.abs(wn[0]);
+    const dir = Math.abs(wn[1]) > 0.6 ? (wn[1] > 0 ? 2 : 3) : Math.abs(wn[0]) > Math.abs(wn[2]) ? (wn[0] > 0 ? 0 : 1) : (wn[2] > 0 ? 4 : 5);
+    for (let k = 0; k < 4; k++) {
+      const du = (k === 1 || k === 2) ? 1 : -1, dv = k >= 2 ? 1 : -1;
+      const p = [c[0], c[1], c[2]]; p[a] += n[a] * h[a]; p[u] += du * h[u]; p[v] += dv * h[v];
+      V.push(o[0] + p[0] * cy + p[2] * sy, o[1] + p[1], o[2] - p[0] * sy + p[2] * cy, col[0], col[1], col[2], dir, mat, shade);
+    }
+    I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+}
+const fxGeo = makeVao(), lineGeo = makeVao();
+const LINE_I = new Uint32Array([0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7]);
+function drawGeo(geo, V, I, mode) {
+  gl.bindVertexArray(geo.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, geo.vb); gl.bufferData(gl.ARRAY_BUFFER, V, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geo.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, I, gl.DYNAMIC_DRAW);
+  gl.drawElements(mode, I.length, gl.UNSIGNED_INT, 0);
+}
+function outlineVerts(h) {
+  const e = 0.006, a = [h.x - e, h.y - e, h.z - e], b = [h.x + 1 + e, h.y + 1 + e, h.z + 1 + e], V = [];
+  [[a[0],a[1],a[2]],[b[0],a[1],a[2]],[b[0],a[1],b[2]],[a[0],a[1],b[2]],[a[0],b[1],a[2]],[b[0],b[1],a[2]],[b[0],b[1],b[2]],[a[0],b[1],b[2]]]
+    .forEach((p) => V.push(p[0], p[1], p[2], 0.05, 0.05, 0.07, 2, 0, 1));
+  return new Float32Array(V);
 }
 
+// test hook: only when the page is opened with #debug
+if (location.hash === '#debug') window.cbg = { E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+
 // ---------- loop ----------
+setHotbar(LOBBY_SLOTS);
+buildLobbyExtras(); uploadWorld();
 let last = performance.now(), T = 0, dogWasSitting = false, bob = 0;
 function resize() {
   const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -493,33 +1118,44 @@ addEventListener('resize', resize); resize();
 
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  const blocked = anyDialog() || !!joining;
+  const lobby = scene === 'lobby';
   // input → world-space move
   let fx = 0, fz = 0;
-  if (playing && $('menu').hidden) {
+  if (playing && !blocked) {
     const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - joy.y;
     const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + joy.x;
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
     fx = sy * f - cy * s; fz = cy * f + sy * s;
     const l = Math.hypot(fx, fz); if (l > 1) { fx /= l; fz /= l; }
   }
-  const jump = playing && (keys.Space || touchJump) ? 1 : 0;
+  const jump = playing && !blocked && (keys.Space || touchJump) ? 1 : 0;
   const sprint = keys.ShiftLeft || keys.ShiftRight || touchSprint ? 1 : 0;
-  const portal = joining ? 0 : E.player_step(dt, fx, fz, jump, sprint);
-  E.dog_step(dt);
-  if (portal > 0 && playing) joinPortal(portal);
-  if (portal === -1) say('You fell off the island! Back to spawn.');
+  const ret = joining ? 0 : E.player_step(dt, fx, fz, jump, sprint);
+  if (lobby) {
+    E.dog_step(dt);
+    if (ret > 0 && playing) startJoin(ret - 1);
+    if (ret === -1) say('You fell off the island! Back to spawn.');
+    if (playing) raceStep(dt);
+  } else if (G && !G.over && playing && !blocked) {
+    const game = GAMES[scene];
+    game.update(dt, ret);
+    const held = mouseHeld || touchUse, pressed = held && !lastHeld; lastHeld = held;
+    if (G && !G.over && game.primary) game.primary(dt, held, pressed);
+  } else { $('minebar').hidden = true; lastHeld = false; }
+  if (worldDirty) { uploadWorld(); worldDirty = false; }
 
   if (joining) {
-    joining.t += dt; $('toastBar').style.width = Math.min(100, joining.t / 1.8 * 100) + '%';
-    if (joining.t > 1.8 && !joining.done) { joining.done = true; $('toastT').textContent = `${joining.p.name} isn't built yet`; $('toastP').textContent = 'This portal is a placeholder. Connect it to your game scene in the repo.'; }
-    if (joining.t > 4.2) { $('toast').hidden = true; E.respawn_player(); yaw = 0; pitch = 0; joining = null; }
-  }
+    joining.t += dt; $('toastBar').style.width = Math.min(100, joining.t / 1.1 * 100) + '%';
+    if (joining.t > 1.1) { const i = joining.i; joining = null; $('toast').hidden = true; loadGame(i); }
+  } else if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('toast').hidden = true; }
 
-  const riding = E.is_riding();
+  const riding = lobby && E.is_riding();
   const speed = E.player_speed();
   if (E.player_on_ground() && speed > 0.5) bob += dt * speed * (riding ? 0.9 : 2.2);
   const eye = [E.player_x(), E.player_y() + (riding ? 2.1 : 1.62) + Math.sin(bob) * (riding ? 0.05 : 0.04), E.player_z()];
   const dir = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+  curEye = eye; curDir = dir;
   const fovBase = 70 * Math.PI / 180, fov = fovBase + (riding ? Math.min(0.35, speed / 70) : 0);
   const asp = canvas.width / canvas.height;
   const P = persp(fov, asp, 0.05, 260), L = look(eye, dir), VP = mul(P, L.m);
@@ -538,15 +1174,22 @@ function frame(now) {
   gl.uniformMatrix4fv(prog.u.uVP, false, VP); gl.uniform3fv(prog.u.uEye, eye); gl.uniform1f(prog.u.uTime, T); gl.uniform3fv(prog.u.uFog, fog);
   gl.bindVertexArray(world.vao); gl.depthMask(true); gl.disable(gl.BLEND);
   gl.drawElements(gl.TRIANGLES, nOpaque, gl.UNSIGNED_INT, 0);
-  // dog
-  const ddx = E.dog_dx(), ddz = E.dog_dz();
-  const dogState = { x: E.dog_x(), y: E.dog_y(), z: E.dog_z(), yaw: (Math.abs(ddx) + Math.abs(ddz) > 1e-4) ? Math.atan2(ddx, ddz) : 0, mode: E.dog_mode(), moving: E.dog_moving(), t: T, saddle: true };
-  if (riding) { dogState.yaw = yaw; }
-  const dg = buildDog(dogState);
-  gl.bindVertexArray(dogGeo.vao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, dogGeo.vb); gl.bufferData(gl.ARRAY_BUFFER, dg.V, gl.DYNAMIC_DRAW);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, dogGeo.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, dg.I, gl.DYNAMIC_DRAW);
-  gl.drawElements(gl.TRIANGLES, dg.I.length, gl.UNSIGNED_INT, 0);
+  // dog (lobby only)
+  let dogState = null;
+  if (lobby) {
+    const ddx = E.dog_dx(), ddz = E.dog_dz();
+    dogState = { x: E.dog_x(), y: E.dog_y(), z: E.dog_z(), yaw: (Math.abs(ddx) + Math.abs(ddz) > 1e-4) ? Math.atan2(ddx, ddz) : 0, mode: E.dog_mode(), moving: E.dog_moving(), t: T, saddle: true };
+    if (riding) dogState.yaw = yaw;
+    const dg = buildDog(dogState);
+    drawGeo(dogGeo, dg.V, dg.I, gl.TRIANGLES);
+  }
+  // bots + snowballs
+  if (scene === 'wars' && G) { const V = [], I = []; Wars.draw(V, I); if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES); }
+  // targeted block outline
+  if (!lobby && G && !G.over && GAMES[scene].outline && playing && !blocked) {
+    const h = aim(scene === 'build' ? 7 : 5);
+    if (h) drawGeo(lineGeo, outlineVerts(h), LINE_I, gl.LINES);
+  }
   // water + portals
   gl.bindVertexArray(world.vao); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
   gl.drawElements(gl.TRIANGLES, nIdx - nOpaque, gl.UNSIGNED_INT, nOpaque * 4);
@@ -557,28 +1200,40 @@ function frame(now) {
     const x = wp[0], y = wp[1], z = wp[2];
     const cx = VP[0]*x + VP[4]*y + VP[8]*z + VP[12], cyy = VP[1]*x + VP[5]*y + VP[9]*z + VP[13], cw = VP[3]*x + VP[7]*y + VP[11]*z + VP[15];
     const dist = Math.hypot(x - eye[0], y - eye[1], z - eye[2]);
-    if (cw <= 0.1 || dist > maxD || !playing) { el.style.display = 'none'; return; }
+    if (!lobby || cw <= 0.1 || dist > maxD || !playing) { el.style.display = 'none'; return; }
     el.style.display = ''; el.style.transform = `translate(${(cx/cw*0.5+0.5)*innerWidth}px, ${(1-(cyy/cw*0.5+0.5))*innerHeight}px) translate(-50%,-100%)`;
     el.style.opacity = String(Math.max(0, Math.min(1, (maxD - dist) / 8)));
   };
   PORTALS.forEach((p, i) => place(portalLabels[i], p.pos, 48));
-  place(dogLabel, [dogState.x, dogState.y + 1.35, dogState.z], riding ? 0 : 22);
+  place(trackLabel, [32, 23.9, 6], 60);
+  place(dogLabel, dogState ? [dogState.x, dogState.y + 1.35, dogState.z] : [0, -99, 0], riding ? 0 : 22);
 
   // HUD state
-  const mode = dogState.mode;
-  $('dogstate').textContent = mode === 3 ? 'Being ridden' : mode === 2 ? 'Sitting' : mode === 1 ? 'Following you' : 'Doing laps';
-  $('speed').textContent = speed.toFixed(1) + ' b/s';
-  $('ridebar').hidden = !riding || !playing;
-  const near = !riding && E.dog_distance() < 3.5 && playing;
-  $('prompt').hidden = !near; if (near) $('prompt').textContent = coarse ? 'Tap RIDE to hop on Nugget' : 'Press F to ride Nugget';
-  if (playing && mode === 2 && !dogWasSitting) say('<b>Nugget</b>: Woof!', 4000);
-  dogWasSitting = mode === 2;
+  if (lobby) {
+    const mode = dogState.mode;
+    $('dogstate').textContent = mode === 3 ? 'Being ridden' : mode === 2 ? 'Sitting' : mode === 1 ? 'Following you' : 'Doing laps';
+    $('speed').textContent = speed.toFixed(1) + ' b/s';
+    $('bestlap').textContent = race.best == null ? '—' : fmtTime(race.best);
+    $('ridebar').hidden = !riding || !playing;
+    if (riding) {
+      const t = race.on ? 'LAP ' + fmtTime(race.t) : 'RIDE THROUGH THE ARCH TO RACE';
+      $('ridebar').textContent = `${t} · SHIFT TURBO · F HOP OFF`;
+    }
+    const near = !riding && E.dog_distance() < 3.5 && playing;
+    $('prompt').hidden = !near; if (near) $('prompt').textContent = coarse ? 'Tap RIDE to hop on Nugget' : 'Press F to ride Nugget';
+    if (playing && mode === 2 && !dogWasSitting) say('<b>Nugget</b>: Woof!', 4000);
+    dogWasSitting = mode === 2;
+  } else if (G) {
+    setBoard(GAMES[scene].board());
+  }
 
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
 } catch (e) { showErr('The lobby failed to start: ' + e.message); console.error(e); }
 })();
 </script>
 
-</body></html>
+</body>
+</html>
