@@ -148,7 +148,7 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
 
 <div id="chat" aria-live="polite"></div>
 <div id="prompt" class="panel" hidden></div>
-<div id="ridebar" class="panel" hidden>RIDING NUGGET · D FOR TURBO · F TO HOP OFF</div>
+<div id="ridebar" class="panel" hidden>RIDING NUGGET · RIGHT-CLICK FOR TURBO · F TO HOP OFF</div>
 <div id="minebar" hidden><i></i></div>
 <div id="hurt"></div>
 
@@ -208,11 +208,10 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
       <kbd>W A S D</kbd><span>Walk</span>
       <kbd>SPACE</kbd><span>Jump</span>
       <kbd>SHIFT</kbd><span>Sprint</span>
-      <kbd>D</kbd><span>Turbo when riding Nugget</span>
       <kbd>F</kbd><span>Ride or hop off Nugget the dog</span>
       <kbd>Q</kbd><span>Whistle for Nugget</span>
       <kbd>CLICK</kbd><span>Mine, break or throw (in games)</span>
-      <kbd>RIGHT-CLICK</kbd><span>Place a block (in games)</span>
+      <kbd>RIGHT-CLICK</kbd><span>Hold for turbo on Nugget · place blocks in games</span>
       <kbd>E</kbd><span>Game menu</span>
       <kbd>B</kbd><span>Back to the lobby</span>
       <kbd>MOUSE</kbd><span>Look around (Esc frees the cursor)</span>
@@ -623,7 +622,7 @@ function whistle() {
 function ride() {
   if (scene !== 'lobby') return;
   const r = E.toggle_ride();
-  if (r === 1) { say('You hopped on <b>Nugget</b>. Hold <b>D</b> for TURBO, Space jumps 3 blocks!'); say('Ride through the checkered arch to race a lap!', 6000); }
+  if (r === 1) { say('You hopped on <b>Nugget</b>. Hold <b>right-click</b> for TURBO, Space jumps 3 blocks!'); say('Ride through the checkered arch to race a lap!', 6000); }
   else if (r === 0) { say('You hopped off. Nugget sits and wags.'); race.on = false; }
   else { say('Get closer to Nugget to ride. Press Q to whistle him over.'); }
 }
@@ -1027,7 +1026,7 @@ function startJoin(i) {
 // ---------- input ----------
 const keys = {};
 let yaw = 0, pitch = -0.05, playing = false;
-let joy = { x: 0, y: 0 }, touchJump = false, touchSprint = false, touchUse = false, mouseHeld = false, lastHeld = false;
+let joy = { x: 0, y: 0 }, touchJump = false, touchSprint = false, touchUse = false, mouseHeld = false, lastHeld = false, rightHeld = false;
 addEventListener('keydown', (e) => {
   if (!playing) return;
   keys[e.code] = true;
@@ -1041,18 +1040,18 @@ addEventListener('keydown', (e) => {
   if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseHeld = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseHeld = false; rightHeld = false; });
 let dragging = false;
 const secondary = () => { if (scene !== 'lobby' && G && !G.over && GAMES[scene].secondary) GAMES[scene].secondary(); };
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   if (!playing || anyDialog()) return;
-  if (e.button === 2) { secondary(); return; }
+  if (e.button === 2) { rightHeld = true; secondary(); return; }
   if (e.button !== 0) return;
   dragging = true; if (scene !== 'lobby') mouseHeld = true;
   lockMouse();
 });
-addEventListener('mouseup', (e) => { if (e.button === 0) { dragging = false; mouseHeld = false; } });
+addEventListener('mouseup', (e) => { if (e.button === 0) { dragging = false; mouseHeld = false; } if (e.button === 2) rightHeld = false; });
 addEventListener('mousemove', (e) => {
   if (!playing) return;
   if (document.pointerLockElement === canvas || dragging) { yaw -= e.movementX * 0.0025; pitch -= e.movementY * 0.0025; pitch = Math.max(-1.5, Math.min(1.5, pitch)); }
@@ -1146,13 +1145,13 @@ function frame(now) {
   const ridingNow = lobby && E.is_riding();
   if (playing && !blocked) {
     const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - joy.y;
-    const s = (!ridingNow && (keys.KeyD || keys.ArrowRight) ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + joy.x;
+    const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + joy.x;
     const sy = Math.sin(yaw), cy = Math.cos(yaw);
     fx = sy * f - cy * s; fz = cy * f + sy * s;
     const l = Math.hypot(fx, fz); if (l > 1) { fx /= l; fz /= l; }
   }
   const jump = playing && !blocked && (keys.Space || touchJump) ? 1 : 0;
-  const sprint = keys.ShiftLeft || keys.ShiftRight || touchSprint || (ridingNow && keys.KeyD) ? 1 : 0;
+  const sprint = keys.ShiftLeft || keys.ShiftRight || touchSprint || (ridingNow && rightHeld) ? 1 : 0;
   const ret = joining ? 0 : E.player_step(dt, fx, fz, jump, sprint);
   if (lobby) {
     E.dog_step(dt);
@@ -1239,7 +1238,7 @@ function frame(now) {
     $('ridebar').hidden = !riding || !playing;
     if (riding) {
       const t = race.on ? 'LAP ' + fmtTime(race.t) : 'RIDE THROUGH THE ARCH TO RACE';
-      $('ridebar').textContent = `${t} · D TURBO · F HOP OFF`;
+      $('ridebar').textContent = `${t} · RIGHT-CLICK TURBO · F HOP OFF`;
     }
     const near = !riding && E.dog_distance() < 3.5 && playing;
     $('prompt').hidden = !near; if (near) $('prompt').textContent = coarse ? 'Tap RIDE to hop on Nugget' : 'Press F to ride Nugget';
