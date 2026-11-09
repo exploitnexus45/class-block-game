@@ -139,6 +139,7 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   <div class="row"><span>Dog</span><span id="dogstate">Doing laps</span></div>
   <div class="row"><span>Speed</span><span id="speed">0.0 b/s</span></div>
   <div class="row"><span>Best lap</span><span id="bestlap">—</span></div>
+  <div class="row"><span>Sky islands</span><span id="skycount">0 of 4</span></div>
   <hr>
   <div class="row"><span><i class="sw" style="background:var(--p0)"></i>Survival</span><span>east</span></div>
   <div class="row"><span><i class="sw" style="background:var(--p1)"></i>Build Battle</span><span>west</span></div>
@@ -441,7 +442,6 @@ function onTrack(x, z) { const r = ringDist(Math.floor(x), Math.floor(z)); retur
 function buildLobbyExtras() {
   for (let x = 0; x < 64; x++) for (let z = 0; z < 64; z++) {
     const r = ringDist(x, z);
-    if (r >= LAND_OUT) continue;
     const isTrack = r >= TRACK_IN && r < TRACK_OUT;
     if (r >= 22.5) for (let y = 17; y < 40; y++) E.set_block(x, y, z, 0); // flatten the outer ring
     if (r >= 22.5 || !E.get_block(x, 16, z)) {
@@ -463,6 +463,7 @@ function buildLobbyExtras() {
   for (let x = 55; x <= 57; x++) E.set_block(x, 17, 30, 7);
   for (let x = 6; x <= 8; x++) E.set_block(x, 17, 34, 7);
   for (let z = 56; z <= 58; z++) E.set_block(36, 17, z, 7);
+  buildSkyIslands();
   // trees in the new corners, inside the track
   for (const [tx, tz] of [[12, 12], [51, 12], [12, 51], [51, 51]]) {
     for (let y = 17; y <= 20; y++) E.set_block(tx, y, tz, 5);
@@ -472,6 +473,50 @@ function buildLobbyExtras() {
     }
   }
 }
+// ---------- sky islands: a parkour climb along each edge to a tiny floating island in each corner ----------
+// Base route is the north-west corner; the other three are the same route turned 90° at a time.
+const SKY_HOPS = [[1, 17, 25], [1, 18, 22], [2, 18, 19], [2, 19, 16], [1, 19, 13], [1, 20, 10], [1, 21, 7]];
+const SKY_TOP = 21; // island floor height (you stand at y = 22)
+const SKY_NAMES = ['North-west', 'North-east', 'South-east', 'South-west'];
+const SKY_COLS = [24, 27, 26, 28]; // orange, blue, lime, purple hops
+const turn = (x, z, k) => { for (let i = 0; i < k; i++) [x, z] = [63 - z, x]; return [x, z]; };
+const skyIslands = [];
+function buildSkyIslands() {
+  skyIslands.length = 0;
+  for (let k = 0; k < 4; k++) {
+    const set = (x, y, z, id) => { const [tx, tz] = turn(x, z, k); E.set_block(tx, y, tz, id); };
+    // start pad on the ground, then the hops
+    set(1, 16, 28, SKY_COLS[k]); set(2, 16, 28, SKY_COLS[k]);
+    for (const [x, y, z] of SKY_HOPS) set(x, y, z, SKY_COLS[k]);
+    // the island: 5x5 grass with rounded corners, a dirt belly, a little tree and a gold block
+    for (let x = 0; x <= 4; x++) for (let z = 0; z <= 4; z++) {
+      const edge = (x === 0 || x === 4) && (z === 0 || z === 4);
+      if (edge) continue;
+      set(x, SKY_TOP, z, 1); set(x, SKY_TOP - 1, z, 2);
+      if (x >= 1 && x <= 3 && z >= 1 && z <= 3) set(x, SKY_TOP - 2, z, 2);
+      if (x === 2 && z === 2) set(x, SKY_TOP - 3, z, 3);
+    }
+    set(2, SKY_TOP, 2, 10);
+    for (let y = SKY_TOP + 1; y <= SKY_TOP + 3; y++) set(0 + 1, y, 3, 5);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const [lx, lz] = [1 + dx, 3 + dz]; if (lx >= 0 && lz >= 0) set(lx, SKY_TOP + 4, lz, 6); }
+    set(1, SKY_TOP + 5, 3, 6);
+    const [cx, cz] = turn(2, 2, k);
+    skyIslands.push({ name: SKY_NAMES[k], x: cx + 0.5, z: cz + 0.5 });
+  }
+}
+const skyProg = { found: new Set(store.get('skyFound') || []) };
+function skyStep() {
+  if (!E.player_on_ground() || E.player_y() < SKY_TOP + 0.5) return;
+  const x = E.player_x(), z = E.player_z();
+  skyIslands.forEach((isl, i) => {
+    if (Math.abs(x - isl.x) > 2.6 || Math.abs(z - isl.z) > 2.6 || skyProg.found.has(i)) return;
+    skyProg.found.add(i); store.set('skyFound', [...skyProg.found]);
+    const n = skyProg.found.size;
+    if (n === 4) banner('ALL 4 SKY ISLANDS!', 'You climbed every one. Parkour pro!', '#ffd36b', 3500);
+    else banner('SKY ISLAND FOUND', `${isl.name} island · ${n} of 4`, '#6fbf4a', 2600);
+  });
+}
+
 // lap timing: only counts while riding Nugget
 const race = { on: false, t: 0, seen: new Set(), last: null, best: store.get('raceBest'), prevX: null, nag: 0 };
 function trackSide(x, z) { const dx = x - 32, dz = z - 32; return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'E' : 'W') : (dz > 0 ? 'S' : 'N'); }
@@ -518,6 +563,7 @@ function banner(title, text, color, ms = 2600) {
 const labels = $('labels');
 const portalLabels = PORTALS.map((p) => { const el = document.createElement('div'); el.className = 'label'; el.style.color = p.color; el.innerHTML = `${p.name.toUpperCase()}<small>walk in to join</small>`; labels.appendChild(el); return el; });
 const trackLabel = document.createElement('div'); trackLabel.className = 'label'; trackLabel.style.color = 'var(--gold)'; trackLabel.innerHTML = 'NUGGET RACEWAY<small>ride through to start a lap</small>'; labels.appendChild(trackLabel);
+const skyLabels = [0, 1, 2, 3].map(() => { const el = document.createElement('div'); el.className = 'label'; el.style.color = '#9fe07a'; el.innerHTML = 'SKY ISLAND<small>climb the blocks</small>'; labels.appendChild(el); return el; });
 const dogLabel = document.createElement('div'); dogLabel.className = 'label dog'; dogLabel.textContent = 'Nugget'; labels.appendChild(dogLabel);
 
 function iconSVG(kind) {
@@ -1090,6 +1136,7 @@ $('play').addEventListener('click', () => {
   say('Welcome to <b>Class Block Game</b>!', 12000);
   say('Walk into a portal to join a game, or press <b>E</b> for the menu. <b>B</b> brings you back to the lobby.', 12000);
   say('Ride <b>Nugget</b> (F) around the <b>Nugget Raceway</b> and set a best lap!', 14000);
+  say('Find the colored blocks at the edges and parkour up to all 4 <b>sky islands</b>!', 14000);
 });
 
 // ---------- extra geometry: bots, snowballs, block outline ----------
@@ -1124,7 +1171,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash === '#debug') window.cbg = { E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash === '#debug') window.cbg = { skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -1157,7 +1204,7 @@ function frame(now) {
     E.dog_step(dt);
     if (ret > 0 && playing) startJoin(ret - 1);
     if (ret === -1) say('You fell off the island! Back to spawn.');
-    if (playing) raceStep(dt);
+    if (playing) { raceStep(dt); skyStep(); }
   } else if (G && !G.over && playing && !blocked) {
     const game = GAMES[scene];
     game.update(dt, ret);
@@ -1227,6 +1274,7 @@ function frame(now) {
   };
   PORTALS.forEach((p, i) => place(portalLabels[i], p.pos, 48));
   place(trackLabel, [32, 23.9, 6], 60);
+  skyIslands.forEach((isl, i) => place(skyLabels[i], [isl.x, SKY_TOP + 7.2, isl.z], 44));
   place(dogLabel, dogState ? [dogState.x, dogState.y + 1.35, dogState.z] : [0, -99, 0], riding ? 0 : 22);
 
   // HUD state
@@ -1235,6 +1283,7 @@ function frame(now) {
     $('dogstate').textContent = mode === 3 ? 'Being ridden' : mode === 2 ? 'Sitting' : mode === 1 ? 'Following you' : 'Doing laps';
     $('speed').textContent = speed.toFixed(1) + ' b/s';
     $('bestlap').textContent = race.best == null ? '—' : fmtTime(race.best);
+    $('skycount').textContent = skyProg.found.size + ' of 4';
     $('ridebar').hidden = !riding || !playing;
     if (riding) {
       const t = race.on ? 'LAP ' + fmtTime(race.t) : 'RIDE THROUGH THE ARCH TO RACE';
