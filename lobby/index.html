@@ -135,6 +135,12 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 #board .big { font: 700 17px/1.3 var(--display); text-align: center; margin: 0 0 6px; color: var(--ink); }
 #minebar { position: fixed; left: 50%; top: calc(50% + 18px); transform: translateX(-50%); width: 46px; height: 5px; background: rgba(0,0,0,.5); pointer-events: none; }
 #minebar i { display: block; height: 100%; width: 0; background: #fff; }
+#hearts { position: fixed; left: 50%; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 2px; pointer-events: none; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.45)); }
+#hearts i { display: block; width: 19px; height: 17px; }
+#hearts svg { width: 100%; height: 100%; display: block; }
+#portalfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle, rgba(140, 60, 220, .25), rgba(90, 20, 160, .85)); }
+.slot .blk.food { border-radius: 40% 45% 40% 50%; }
+@media (max-width: 640px) { #hearts { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); } #hearts i { width: 14px; height: 13px; } }
 #hurt { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 140px 40px rgba(220, 30, 40, .75); opacity: 0; transition: opacity .3s; }
 #tuse { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); right: calc(104px + env(safe-area-inset-right, 0px)); }
 #tplace { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
@@ -166,6 +172,8 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 <div id="prompt" class="panel" hidden></div>
 <div id="ridebar" class="panel" hidden>RIDING NUGGET · RIGHT-CLICK FOR TURBO · F TO HOP OFF</div>
 <div id="minebar" hidden><i></i></div>
+<div id="hearts" hidden role="img" aria-label="Health"></div>
+<div id="portalfx"></div>
 <div id="hurt"></div>
 
 <nav id="hotbar" class="panel" aria-label="Hotbar"></nav>
@@ -319,16 +327,16 @@ const SKY_VS = VHEAD + `
 IN vec2 aPos;
 OUT vec2 vN; void main(){ vN=aPos; gl_Position=vec4(aPos,0.999,1.0); }`;
 const SKY_FS = FHEAD + `
-IN vec2 vN; uniform vec3 uR,uU,uF,uEye; uniform float uTan,uAsp,uTime; uniform vec3 uFog;
+IN vec2 vN; uniform vec3 uR,uU,uF,uEye; uniform float uTan,uAsp,uTime; uniform vec3 uFog; uniform vec3 uZen, uLow; uniform float uDay;
 float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 void main(){
   vec3 d=normalize(uF+vN.x*uAsp*uTan*uR+vN.y*uTan*uU);
-  vec3 zen=vec3(0.33,0.58,0.92), low=vec3(0.52,0.7,0.92);
+  vec3 zen=uZen, low=uLow;
   vec3 c = d.y>0.0 ? mix(uFog,zen,pow(clamp(d.y,0.0,1.0),0.6)) : mix(uFog,low,clamp(-d.y*3.0,0.0,1.0));
   vec3 sd=normalize(vec3(0.45,0.55,0.7)); vec3 sx=normalize(cross(sd,vec3(0,1,0))); vec3 sy=cross(sx,sd);
-  if(dot(d,sd)>0.0){ float a=abs(dot(d,sx)), b=abs(dot(d,sy)); float m=max(a,b);
+  if(uDay>0.5 && dot(d,sd)>0.0){ float a=abs(dot(d,sx)), b=abs(dot(d,sy)); float m=max(a,b);
     if(m<0.06) c=vec3(1.0,0.97,0.82); else if(m<0.09) c=mix(c,vec3(1.0,0.95,0.75),0.35); }
-  if(d.y>0.02){ float t=(70.0-uEye.y)/d.y; vec2 p=uEye.xz+d.xz*t+vec2(uTime*1.2,0.0);
+  if(uDay>0.5 && d.y>0.02){ float t=(70.0-uEye.y)/d.y; vec2 p=uEye.xz+d.xz*t+vec2(uTime*1.2,0.0);
     p=mod(p,12000.0);
     vec2 cell=floor(p/12.0); float k=h2(cell);
     if(k>0.78){ float fade=clamp(1.0-t/600.0,0.0,1.0); c=mix(c,vec3(1.0),0.85*fade); } }
@@ -615,9 +623,10 @@ function iconSVG(kind) {
     pick: ['............','..cccccccc..','.cC..BB..Cc.','.C...BB...C.','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....bb.....','............'],
     bucket: ['............','............','.cccccccccc.','.cCCCCCCCCc.','..cCCCCCCc..','..cCCCCCCc..','..cCCCCCCc..','...cCCCCc...','...cccccc...','............','............','............'],
     bucketw: ['............','............','.cccccccccc.','.cuuuuuuuuc.','..cuuUuuuc..','..cuuuuUuc..','..cuuuuuuc..','...cuuuuc...','...cccccc...','............','............','............'],
+    fns: ['............','...cccc.....','..cC..Cc....','..c....c....','..c....c....','..cC..Cc....','...cc.cc.ff.','.......fFff.','......fFFff.','......ffFf..','.......ff...','............'],
     snow: ['............','....wwww....','...wwwwww...','..wwwwwwYw..','..wwwwwwYw..','..wwwwwYYw..','..wwwwYYYw..','...wYYYYw...','....wwww....','............','............','............'],
   }[kind];
-  const pal = { u: '#3a78e0', U: '#8fc0ff', '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#bdb7a6', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a', c: '#b8c0c8', C: '#6c747c' };
+  const pal = { f: '#2c2c30', F: '#5a5a62', u: '#3a78e0', U: '#8fc0ff', '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#bdb7a6', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a', c: '#b8c0c8', C: '#6c747c' };
   let r = '';
   px.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`; }));
   return `<svg class="ic" viewBox="0 0 12 12" shape-rendering="crispEdges">${r}</svg>`;
@@ -629,6 +638,7 @@ let SLOTS = [], selected = 0;
 function slotHTML(s) {
   let h = `<span class="k">${s.key}</span>`;
   if (s.block) h += `<span class="blk" style="background:${blockCol(s.block)}"></span>`;
+  else if (s.color) h += `<span class="blk food" style="background:${s.color}"></span>`;
   else if (s.icon) h += iconSVG(s.icon);
   if (s.count != null) h += `<span class="n">${s.count}</span>`;
   if (s.tip) h += `<span class="tip">${s.tip}</span>`;
@@ -739,13 +749,17 @@ function tryPlace(id, allow) {
 // → diamonds → diamond pick → bucket → water → pour on cave lava → obsidian → mine it with the diamond pick.
 const TOOLS = ['Bare hands', 'Wooden pickaxe', 'Stone pickaxe', 'Iron pickaxe', 'Diamond pickaxe'];
 const TOOL_SPEED = [1, 2, 3, 4.2, 6];
-const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [2, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [7, 4] };
-const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'rawIron', 19: 'rawGold', 20: 'diamond' };
-const ITEM = { coal: 'Coal', rawIron: 'Raw iron', rawGold: 'Raw gold', iron: 'Iron ingot', gold: 'Gold ingot', diamond: 'Diamond' };
-const ITEM_COL = { coal: '#2b2b2e', rawIron: '#c9a07a', rawGold: '#e8c040', iron: '#d8d8d8', gold: '#ffd933', diamond: '#59f2f2' };
-const LAVA = 15, WATER = 4, FURNACE = 8, OBSIDIAN = 11, TABLE = 100; // a crafting table is a planks block the game remembers
+const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [2, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [7, 4], 31: [.6, 0], 23: [.5, 1], 21: [.4, 0], 24: [3, 3] };
+const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'rawIron', 19: 'rawGold', 20: 'diamond', 24: 'diamond' };
+const ITEM = { coal: 'Coal', rawIron: 'Raw iron', rawGold: 'Raw gold', iron: 'Iron ingot', gold: 'Gold ingot', diamond: 'Diamond', flint: 'Flint', leather: 'Leather', feather: 'Feather',
+  beef: 'Raw beef', cookedBeef: 'Steak', pork: 'Raw porkchop', cookedPork: 'Cooked porkchop', chicken: 'Raw chicken', cookedChicken: 'Cooked chicken', mutton: 'Raw mutton', cookedMutton: 'Cooked mutton' };
+const ITEM_COL = { coal: '#2b2b2e', rawIron: '#c9a07a', rawGold: '#e8c040', iron: '#d8d8d8', gold: '#ffd933', diamond: '#59f2f2', flint: '#3c3c40', leather: '#8a5530', feather: '#f2f2ee',
+  beef: '#c9403c', cookedBeef: '#7a4a2a', pork: '#f0a0a0', cookedPork: '#c98a50', chicken: '#f2c8b8', cookedChicken: '#d89a50', mutton: '#c85a50', cookedMutton: '#9a5a3a' };
+// how many half-hearts each food restores
+const FOOD = { beef: 2, pork: 2, chicken: 2, mutton: 2, cookedBeef: 6, cookedPork: 6, cookedChicken: 5, cookedMutton: 5 };
+const LAVA = 15, WATER = 4, FURNACE = 8, OBSIDIAN = 11, TABLE = 100, GRAVEL = 31, PORTAL = 13, NETHERRACK = 23; // a crafting table is a planks block the game remembers
 BLOCK[TABLE] = ['Crafting table', '#a8743c'];
-const sName = (id) => id === FURNACE ? 'Furnace' : BLOCK[id][0];
+const sName = (id) => id === FURNACE ? 'Furnace' : id === GRAVEL ? 'Gravel' : id === NETHERRACK ? 'Netherrack' : id === 21 ? 'Glowstone' : BLOCK[id][0];
 const posKey = (x, y, z) => x + ',' + y + ',' + z;
 const RECIPES = [
   { name: '4 Planks', need: { 5: 1 }, block: 7, make: () => Survival.add(7, 4) },
@@ -756,14 +770,19 @@ const RECIPES = [
   { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3, table: true },
   { name: 'Bucket', need: { iron: 3 }, bucket: true, table: true, make: () => { G.bucket = 1; Survival.giveBucket(); } },
   { name: 'Diamond pickaxe', need: { diamond: 3, 7: 2 }, tool: 4, table: true },
+  { name: 'Flint and steel', need: { iron: 1, flint: 1 }, fns: true, table: true, make: () => { G.fns = true; Survival.giveHot('fns'); } },
   { name: 'Gold block', need: { gold: 4 }, block: 10, table: true, make: () => Survival.add(10, 1) },
 ];
 const SMELT = [
   { name: 'Iron ingot', from: 'rawIron', to: 'iron', col: '#d8d8d8' },
   { name: 'Gold ingot', from: 'rawGold', to: 'gold', col: '#ffd933' },
+  { name: 'Steak', from: 'beef', to: 'cookedBeef', col: '#7a4a2a', food: true },
+  { name: 'Cooked porkchop', from: 'pork', to: 'cookedPork', col: '#c98a50', food: true },
+  { name: 'Cooked chicken', from: 'chicken', to: 'cookedChicken', col: '#d89a50', food: true },
+  { name: 'Cooked mutton', from: 'mutton', to: 'cookedMutton', col: '#9a5a3a', food: true },
 ];
 const have = (k) => isNaN(k) ? G.items[k] : (G.inv[k] || 0);
-const recipeDone = (r) => (r.tool && G.tool >= r.tool) || (r.bucket && G.bucket);
+const recipeDone = (r) => (r.tool && G.tool >= r.tool) || (r.bucket && G.bucket) || (r.fns && G.fns);
 const canCraft = (r) => !recipeDone(r) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
 const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : sName(+k)}`).join(' + ');
 let craftMode = 'inv';
@@ -774,7 +793,7 @@ $('craftClose').addEventListener('click', () => { closeCraft(); lockMouse(); });
 function recipeButton(r, el) {
   const b = document.createElement('button'); b.className = 'game';
   b.disabled = !canCraft(r);
-  const col = r.tool ? (r.tool === 4 ? '#59f2f2' : '#b8c0c8') : r.bucket ? '#b8c0c8' : blockCol(r.block);
+  const col = r.tool ? (r.tool === 4 ? '#59f2f2' : '#b8c0c8') : r.bucket ? '#b8c0c8' : r.fns ? '#8a8a90' : blockCol(r.block);
   b.innerHTML = `<i style="background:${col}"></i><span>${r.name}</span><em>${recipeDone(r) ? 'crafted ✓' : needText(r)}</em>`;
   b.addEventListener('click', () => {
     if (!canCraft(r)) return;
@@ -783,6 +802,7 @@ function recipeButton(r, el) {
     if (r.block === TABLE) say('Crafting table made! Put it in your hotbar, place it (right-click), then right-click it to craft tools.', 8000);
     if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
     if (r.bucket) say('Bucket crafted! Right-click water with it to fill it.', 7000);
+    if (r.fns) say('Flint and steel! Right-click the inside of an obsidian frame to light a <b>Nether portal</b>.', 8000);
     Survival.hot(); renderCraft();
   });
   el.appendChild(b);
@@ -794,12 +814,12 @@ function renderCraft() {
   $('craftClose').textContent = craftMode === 'inv' ? 'CLOSE (E)' : 'DONE';
   if (craftMode === 'furnace') {
     $('craftT').textContent = 'FURNACE';
-    note(el, `Each smelt burns 1 coal. You have ${G.items.coal} coal.`);
-    SMELT.forEach((r) => {
+    note(el, `Each smelt or cook burns 1 coal. You have ${G.items.coal} coal.`);
+    SMELT.filter((r) => !r.food || G.items[r.from] > 0).forEach((r) => {
       const n = Math.min(G.items[r.from], G.items.coal);
       const b = document.createElement('button'); b.className = 'game';
       b.disabled = n < 1;
-      b.innerHTML = `<i style="background:${r.col}"></i><span>Smelt ${r.name}</span><em>${G.items[r.from]} ${ITEM[r.from].toLowerCase()} · 1 coal each</em>`;
+      b.innerHTML = `<i style="background:${r.col}"></i><span>${r.food ? 'Cook' : 'Smelt'} ${r.name}</span><em>${G.items[r.from]} ${ITEM[r.from].toLowerCase()} · 1 coal each</em>`;
       b.addEventListener('click', () => {
         const k = Math.min(G.items[r.from], G.items.coal); if (k < 1) return;
         G.items[r.from] -= k; G.items.coal -= k; G.items[r.to] += k;
@@ -835,9 +855,10 @@ function renderCraft() {
     any = true; tile(sName(id), blockCol(id), G.inv[id], () => { Survival.toSlot(id); renderCraft(); }, G.hot.includes(id));
   });
   if (G.bucket) { any = true; tile(G.bucket === 2 ? 'Water bucket' : 'Bucket', G.bucket === 2 ? '#3a78e0' : '#b8c0c8', 1, () => { Survival.toSlot('bucket'); renderCraft(); }, G.hot.includes('bucket')); }
-  Object.keys(ITEM).filter((k) => G.items[k] > 0).forEach((k) => { any = true; tile(ITEM[k], ITEM_COL[k], G.items[k], null, false); });
+  if (G.fns) { any = true; tile('Flint and steel', '#8a8a90', 1, () => { Survival.toSlot('fns'); renderCraft(); }, G.hot.includes('fns')); }
+  Object.keys(ITEM).filter((k) => G.items[k] > 0).forEach((k) => { any = true; tile(ITEM[k], ITEM_COL[k], G.items[k], FOOD[k] ? () => { Survival.toSlot(k); renderCraft(); } : null, G.hot.includes(k)); });
   if (!any) note(el, 'Nothing yet. Hold click on a tree to collect logs.');
-  note(el, `Pickaxe: <b>${TOOLS[G.tool]}</b>`);
+  note(el, `Pickaxe: <b>${TOOLS[G.tool]}</b> · Hearts: <b>${G.hp / 2} of 10</b> · Click food to hold it, right-click to eat.`);
   const m = document.createElement('button'); m.className = 'btn alt'; m.textContent = 'PAUSE MENU';
   m.addEventListener('click', () => { closeCraft(); openMenu(); });
   el.appendChild(m);
@@ -856,10 +877,10 @@ function rayAny(reach) {
 }
 const GOALS = [
   ['Craft a crafting table', () => G.tableCrafted],
-  ['Place the crafting table', () => G.tables.size >= 1],
+  ['Place the crafting table', () => G.tables.size >= 1 || G.dim === 'nether'],
   ['Craft a wooden pickaxe', () => G.tool >= 1],
   ['Craft a stone pickaxe', () => G.tool >= 2],
-  ['Build and place a furnace', () => G.furnaceAt.size >= 1],
+  ['Build and place a furnace', () => G.furnaceAt.size >= 1 || G.dim === 'nether'],
   ['Smelt 3 iron ingots', () => G.smelted >= 3],
   ['Craft an iron pickaxe', () => G.tool >= 3],
   ['Mine 3 diamonds', () => G.diamondsMined >= 3],
@@ -867,22 +888,45 @@ const GOALS = [
   ['Craft a bucket', () => G.bucket > 0],
   ['Fill the bucket with water', () => G.filled],
   ['Pour water on lava', () => G.obsidianMade >= 1],
-  ['Mine the obsidian', () => G.obsidianMined >= 1],
+  ['Mine 10 obsidian', () => G.obsidianMined >= 10],
+  ['Find flint in gravel', () => G.flintFound],
+  ['Craft flint and steel', () => G.fns],
+  ['Light a Nether portal', () => G.portalLit],
+  ['Enter the Nether', () => G.wentNether],
 ];
 function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+// ----- farm animals -----
+const MOBS = {
+  cow: { hp: 10, hw: 0.45, h: 1.4, speed: 1.0 },
+  pig: { hp: 10, hw: 0.38, h: 0.95, speed: 1.1 },
+  sheep: { hp: 8, hw: 0.42, h: 1.3, speed: 1.0 },
+  chicken: { hp: 4, hw: 0.25, h: 0.8, speed: 1.2 },
+};
+const MOB_NAMES = { cow: 'Cow', pig: 'Pig', sheep: 'Sheep', chicken: 'Chicken' };
+const TOOL_DMG = [2, 3, 4, 5, 6];
+const WSIZE = 64 * 40 * 64;
+// one heart picture, filled by a CSS variable so full / half / empty share it
+const HEART = (fill) => `<svg viewBox="0 0 7 6" shape-rendering="crispEdges" aria-hidden="true"><path d="M1 0h2v1h1V0h2v1h1v2H6v1H5v1H4v1H3V5H2V4H1V3H0V1h1z" fill="#1c0b0e"/><path d="M1 1h2v1h1V1h2v2H5v1H4v1H3V4H2V3H1z" fill="${fill}"/></svg>`;
 const Survival = {
   title: 'SURVIVAL', yaw: 0, outline: true, use: 'MINE',
   init() {
-    G = { t: 0, inv: {}, hot: Array(9).fill(null), items: { coal: 0, rawIron: 0, rawGold: 0, iron: 0, gold: 0, diamond: 0 }, tool: 0, mine: null,
-      done: GOALS.map(() => false), tables: new Set(), furnaceAt: new Set(), tableCrafted: false, smelted: 0, diamondsMined: 0, bucket: 0, filled: false, obsidianMade: 0, obsidianMined: 0, caves: [], won: false };
+    G = { t: 0, inv: {}, hot: Array(9).fill(null), items: Object.fromEntries(Object.keys(ITEM).map((k) => [k, 0])), tool: 0, mine: null,
+      done: GOALS.map(() => false), tables: new Set(), furnaceAt: new Set(), tableCrafted: false, smelted: 0, diamondsMined: 0,
+      bucket: 0, filled: false, obsidianMade: 0, obsidianMined: 0, caves: [], won: false,
+      fns: false, flintFound: false, gravelMined: 0, portalLit: false, wentNether: false,
+      hp: 20, regen: 0, lavaT: 0, peak: null, mobs: [], mobSpawnT: 0, fires: [], dim: 'over', portalT: 0, portalCool: 0,
+      saved: {}, mobLock: false, swing: 0 };
     this.shapeWorld();
+    G.overSpawn = [E.player_x(), E.player_y(), E.player_z()];
+    for (const type of ['cow', 'cow', 'cow', 'sheep', 'sheep', 'sheep', 'pig', 'pig', 'pig', 'chicken', 'chicken', 'chicken']) this.spawnMob(type, 6);
     this.hot();
+    $('hearts').hidden = false; this.hearts();
     say('<b>Survival</b>: hold click on a tree to get logs, then press <b>E</b> for your inventory.', 15000);
-    say('Turn logs into planks and craft a <b>crafting table</b>. Place it and right-click it to make tools.', 15000);
-    say('Smelt iron in a <b>furnace</b>, craft a <b>diamond pickaxe</b>, then turn cave <b>lava</b> into <b>obsidian</b> with a water bucket.', 15000);
-    say('Lava caves are deep underground. Watch your depth on the scoreboard and dig down!', 15000);
+    say('Craft a <b>crafting table</b>, then tools. Smelt iron, get diamonds, and turn cave lava into <b>obsidian</b>.', 15000);
+    say('Build an obsidian frame and light it with <b>flint and steel</b> to open a <b>Nether portal</b>!', 15000);
+    say('Watch your <b>hearts</b>. Eat food from cows, pigs, sheep and chickens to heal (cook it in a furnace).', 15000);
   },
-  // a pond near spawn and a few lava caves deep inside the island
+  // a pond near spawn, gravel patches, and a few lava caves deep inside the island
   shapeWorld() {
     const rnd = seeded(20261109);
     const top = (x, z) => E.ground_at(x + 0.5, 30, z + 0.5) - 1;
@@ -902,6 +946,18 @@ const Survival = {
       }
       G.pond = [ox + 1.5, wy, oz + 1.5];
       break pond;
+    }
+    // gravel patches on the surface (flint comes from gravel)
+    let patches = 0;
+    for (let tries = 0; tries < 200 && patches < 7; tries++) {
+      const a = rnd() * Math.PI * 2, r = 7 + rnd() * 15, cx = Math.round(32 + Math.cos(a) * r), cz = Math.round(32 + Math.sin(a) * r);
+      const t = top(cx, cz); if (E.get_block(cx, t, cz) !== 1) continue;
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+        if (dx * dx + dz * dz > 3 + rnd() * 2) continue;
+        const x = cx + dx, z = cz + dz, ty = top(x, z);
+        if (E.get_block(x, ty, z) === 1 || E.get_block(x, ty, z) === 2) { setBlock(x, ty, z, GRAVEL); if (E.get_block(x, ty - 1, z) === 2) setBlock(x, ty - 1, z, GRAVEL); }
+      }
+      patches++;
     }
     const cands = [];
     for (let cx = 8; cx <= 56; cx += 2) for (let cz = 8; cz <= 56; cz += 2) for (let cy = 6; cy <= 11; cy++) {
@@ -928,36 +984,87 @@ const Survival = {
         setBlock(cx + x, y, cz + z, LAVA);
         if (!E.get_block(cx + x, y - 1, cz + z)) setBlock(cx + x, y - 1, cz + z, 3);
       }
-      // a couple of diamonds in the walls as a reward
       for (const [x, y, z] of [[4, 0, 0], [-4, 1, 0], [0, 0, 4]]) if (rnd() < 0.7) setBlock(cx + x, cy + y, cz + z, 20);
       G.caves.push(c);
     }
   },
-  // new things go into the first empty hotbar slot; the inventory (E) lets you rearrange
+  // ----- inventory & hotbar -----
   add(id, n) {
     G.inv[id] = (G.inv[id] || 0) + n;
-    if (!G.hot.includes(id)) { const i = G.hot.indexOf(null); if (i >= 0) G.hot[i] = id; }
-    this.hot();
+    this.giveHot(id); this.hot();
   },
-  giveBucket() { if (!G.hot.includes('bucket')) { const i = G.hot.indexOf(null); if (i >= 0) G.hot[i] = 'bucket'; } },
+  giveHot(k) { if (!G.hot.includes(k)) { const i = G.hot.indexOf(null); if (i >= 0) G.hot[i] = k; } },
+  giveBucket() { this.giveHot('bucket'); },
   toSlot(k) {
     const j = selected, prev = G.hot.indexOf(k);
     if (prev >= 0) G.hot[prev] = G.hot[j];
     G.hot[j] = k; this.hot();
   },
+  keep(k) {
+    if (k == null) return false;
+    if (k === 'bucket') return !!G.bucket;
+    if (k === 'fns') return G.fns;
+    if (FOOD[k]) return G.items[k] > 0;
+    return (G.inv[k] || 0) > 0;
+  },
   hot() {
-    G.hot = G.hot.map((k) => k === 'bucket' ? (G.bucket ? k : null) : (k != null && (G.inv[k] || 0) > 0 ? k : null));
+    G.hot = G.hot.map((k) => this.keep(k) ? k : null);
     setHotbar(G.hot.map((k) => k == null ? {}
       : k === 'bucket' ? { icon: G.bucket === 2 ? 'bucketw' : 'bucket', tip: G.bucket === 2 ? 'Water bucket: right-click lava' : 'Bucket: right-click water to fill' }
+      : k === 'fns' ? { icon: 'fns', tip: 'Flint and steel: right-click an obsidian frame' }
+      : FOOD[k] ? { color: ITEM_COL[k], count: G.items[k], tip: `${ITEM[k]}: right-click to eat` }
       : { block: k, count: G.inv[k], tip: sName(k) + (k === FURNACE || k === TABLE ? ' (place it, then right-click)' : '') }));
   },
-  primary(dt, held) {
+  // ----- hearts -----
+  hearts() {
+    if (G.heartsShown === G.hp) return; G.heartsShown = G.hp;
+    let h = '';
+    for (let i = 0; i < 10; i++) { const v = G.hp - i * 2; h += `<i class="${v >= 2 ? 'full' : v === 1 ? 'half' : 'empty'}">${HEART(v >= 2 ? '#e8322e' : v === 1 ? 'url(#halfheart)' : '#4a1c22')}</i>`; }
+    $('hearts').innerHTML = '<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="halfheart"><stop offset="50%" stop-color="#e8322e"/><stop offset="50%" stop-color="#4a1c22"/></linearGradient></defs></svg>' + h;
+    $('hearts').setAttribute('aria-label', `Health: ${G.hp / 2} of 10 hearts`);
+  },
+  hurt(n, why) {
+    if (G.over) return;
+    G.hp = Math.max(0, G.hp - n); G.regen = 0; this.hearts();
+    $('hurt').style.opacity = '1'; setTimeout(() => { $('hurt').style.opacity = '0'; }, 200);
+    if (G.hp <= 0) {
+      G.hp = 20; G.heartsShown = null; this.hearts(); G.peak = null; G.lavaT = 0;
+      E.respawn_player();
+      banner('YOU DIED', `${why}. You respawned and kept your items.`, '#ff5280', 3000);
+    }
+  },
+  heal(n) { G.hp = Math.min(20, G.hp + n); this.hearts(); },
+  // ----- mining, fighting -----
+  hitMob(reach) {
+    let best = null, bt = reach;
+    for (const m of G.mobs) {
+      const s = MOBS[m.type], lo = [m.x - s.hw, m.y, m.z - s.hw], hi = [m.x + s.hw, m.y + s.h, m.z + s.hw];
+      let t0 = 0, t1 = bt, ok = true;
+      for (let a = 0; a < 3 && ok; a++) {
+        if (Math.abs(curDir[a]) < 1e-6) { if (curEye[a] < lo[a] || curEye[a] > hi[a]) ok = false; continue; }
+        let ta = (lo[a] - curEye[a]) / curDir[a], tb = (hi[a] - curEye[a]) / curDir[a]; if (ta > tb) [ta, tb] = [tb, ta];
+        t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) ok = false;
+      }
+      if (ok && t0 < bt) { bt = t0; best = m; }
+    }
+    if (!best) return null;
+    const h = aim(reach);
+    if (h && Math.hypot(h.x + 0.5 - curEye[0], h.y + 0.5 - curEye[1], h.z + 0.5 - curEye[2]) + 0.4 < bt) return null; // a block is in the way
+    return best;
+  },
+  primary(dt, held, pressed) {
     $('minebar').hidden = true;
-    if (!held) { G.mine = null; return; }
+    if (!held) { G.mine = null; G.mobLock = false; return; }
+    if (pressed) {
+      const m = G.dim === 'over' && this.hitMob(3.5);
+      if (m) { this.damageMob(m); G.mine = null; G.mobLock = true; return; }
+    }
+    if (G.mobLock) return;
     const h = aim(5); if (!h) { G.mine = null; return; }
     if (h.y === 0) return warn('That is the bottom of the world. It will not break.');
+    if (G.dim === 'nether' && G.netherFrame && G.netherFrame.has(posKey(h.x, h.y, h.z))) return warn('This portal frame is your way home, so it will not break.');
     const hd = HARD[h.id] || [1, 0];
-    if (G.tool < hd[1]) { G.mine = null; return warn(`Too hard! You need a <b>${TOOLS[hd[1]]}</b>. Press <b>C</b> to craft.`); }
+    if (G.tool < hd[1]) { G.mine = null; return warn(`Too hard! You need a <b>${TOOLS[hd[1]]}</b>. Craft it at a crafting table.`); }
     const key = h.x + ',' + h.y + ',' + h.z;
     if (!G.mine || G.mine.key !== key) G.mine = { key, t: 0, need: hd[0] / TOOL_SPEED[G.tool] };
     G.mine.t += dt;
@@ -967,31 +1074,282 @@ const Survival = {
     const pk = posKey(h.x, h.y, h.z);
     if (G.tables.delete(pk)) { this.add(TABLE, 1); say('Picked up your crafting table.', 3000); return; }
     G.furnaceAt.delete(pk);
+    // a portal loses its magic if you break its frame
+    if (h.id === OBSIDIAN) this.breakPortalsNear(h.x, h.y, h.z);
+    if (h.id === GRAVEL) {
+      G.gravelMined++;
+      if (Math.random() < 0.4 || G.gravelMined % 3 === 0) { G.items.flint++; G.flintFound = true; say('+1 <b>Flint</b>!', 3500); }
+      else this.add(GRAVEL, 1);
+      return;
+    }
     const d = DROP[h.id] ?? h.id;
     if (typeof d === 'string') {
       G.items[d]++; if (d === 'diamond') G.diamondsMined++;
       say(`+1 <b>${ITEM[d]}</b>${d === 'rawIron' || d === 'rawGold' ? ' (smelt it in a furnace)' : ''}`, 3500);
     } else {
       this.add(d, 1);
-      if (h.id === OBSIDIAN) { G.obsidianMined++; say('+1 <b>Obsidian</b>! Only a diamond pickaxe can do that.', 5000); }
+      if (h.id === OBSIDIAN) {
+        G.obsidianMined++;
+        if (G.obsidianMined === 1) say('+1 <b>Obsidian</b>! Collect 10 to build a Nether portal frame.', 6000);
+        if (G.obsidianMined === 10) say('10 obsidian! Build a frame: <b>4 wide and 5 tall</b> (2×3 hole inside). Corners are optional.', 9000);
+      }
     }
   },
+  damageMob(m) {
+    m.hp -= TOOL_DMG[G.tool]; m.hit = 0.3; m.flee = 5;
+    const kx = m.x - E.player_x(), kz = m.z - E.player_z(), l = Math.hypot(kx, kz) || 1;
+    m.kx = kx / l * 5; m.kz = kz / l * 5; m.vy = 4;
+    if (m.hp > 0) return;
+    m.dead = true;
+    const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+    const got = [];
+    const give = (k, n) => { if (n > 0) { G.items[k] += n; got.push(`${n} ${ITEM[k]}`); } };
+    if (m.type === 'cow') { give('beef', r(1, 2)); give('leather', r(0, 2)); }
+    if (m.type === 'pig') give('pork', r(1, 3));
+    if (m.type === 'chicken') { give('chicken', 1); give('feather', r(0, 2)); }
+    if (m.type === 'sheep') { give('mutton', r(1, 2)); this.add(29, 1); got.push('1 White wool'); }
+    for (const k of ['beef', 'pork', 'chicken', 'mutton']) if (G.items[k] > 0) this.giveHot(k);
+    this.hot();
+    say(`+${got.join(', ')}`, 4000);
+  },
+  // ----- right click -----
   secondary() {
     const h = aim(5);
-    if (h && h.id === FURNACE) return openFurnace();
+    if (h && h.id === FURNACE && G.furnaceAt.has(posKey(h.x, h.y, h.z))) return openFurnace();
     if (h && G.tables.has(posKey(h.x, h.y, h.z))) return openTable();
     const k = G.hot[selected];
     if (k === 'bucket') return this.useBucket();
+    if (k === 'fns') return this.useFlint(h);
+    if (FOOD[k]) return this.eat(k);
     if (k == null || !G.inv[k]) return warn('That hotbar slot is empty. Press <b>E</b> to open your inventory.');
     const p = tryPlace(k === TABLE ? 7 : k);
     if (!p) return;
     G.inv[k]--;
     const pk = posKey(p.x, p.y, p.z);
     if (k === TABLE) { G.tables.add(pk); say('Crafting table placed! <b>Right-click</b> it to craft tools.', 6000); }
-    if (k === FURNACE) { G.furnaceAt.add(pk); say('Furnace placed! Right-click it to smelt.', 5000); }
+    if (k === FURNACE) { G.furnaceAt.add(pk); say('Furnace placed! Right-click it to smelt and cook.', 5000); }
     this.hot();
   },
-  // little details so the table and furnace look like what they are
+  eat(k) {
+    if (G.hp >= 20) return warn('Your hearts are already full.');
+    G.items[k]--; this.heal(FOOD[k]);
+    say(`Ate ${ITEM[k].toLowerCase()}: <b>+${FOOD[k] / 2} heart${FOOD[k] > 2 ? 's' : ''}</b>${k.startsWith('cooked') ? '' : ' (cooked food heals more)'}`, 3500);
+    this.hot();
+  },
+  useBucket() {
+    if (!G.bucket) return warn('Craft a bucket first (3 iron ingots).');
+    const h = rayAny(5);
+    if (G.bucket === 1) {
+      if (h && h.id === WATER) { G.bucket = 2; G.filled = true; say('Filled your bucket with <b>water</b>!', 4000); this.hot(); }
+      else warn(G.dim === 'nether' ? 'There is no water in the Nether!' : 'Aim at water to fill your bucket. There is a pond near spawn.');
+      return;
+    }
+    if (G.dim === 'nether') { G.bucket = 1; this.hot(); return say('The water hissed away into steam. The Nether is too hot!', 4000); }
+    if (h && h.id === LAVA && !this.isFire(h.x, h.y, h.z)) { this.cool(h.x, h.y, h.z); G.bucket = 1; this.hot(); return; }
+    if (h && h.id !== WATER && h.prev) {
+      const [x, y, z] = h.prev;
+      if (!E.get_block(x, y, z) && !E.player_overlaps(x, y, z)) {
+        setBlock(x, y, z, WATER); G.bucket = 1;
+        for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) if (E.get_block(x + dx, y + dy, z + dz) === LAVA && !this.isFire(x + dx, y + dy, z + dz)) this.cool(x + dx, y + dy, z + dz);
+        this.hot(); return;
+      }
+    }
+    warn('Aim at lava to turn it into obsidian.');
+  },
+  // water spreads across the whole lava pool, like in the real game
+  cool(x, y, z) {
+    const q = [[x, z]], seen = new Set([x + ',' + z]); let n = 0;
+    while (q.length && n < 40) {
+      const [cx, cz] = q.shift();
+      setBlock(cx, y, cz, OBSIDIAN); n++;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const k = (cx + dx) + ',' + (cz + dz);
+        if (!seen.has(k) && E.get_block(cx + dx, y, cz + dz) === LAVA) { seen.add(k); q.push([cx + dx, cz + dz]); }
+      }
+    }
+    G.obsidianMade += n;
+    say(`Sssss! The lava pool cooled into <b>${n} obsidian</b>. Mine it with a diamond pickaxe.`, 6000);
+  },
+  // ----- flint and steel, fire, portals -----
+  isFire(x, y, z) { return G.fires.some((f) => f.x === x && f.y === y && f.z === z); },
+  useFlint(h) {
+    if (!h) return warn('Aim at a block to light it.');
+    const p = [h.x + h.nx, h.y + h.ny, h.z + h.nz];
+    // clicking any side of a frame block lights the portal next to it
+    if (h.id === OBSIDIAN) for (const c of [p, [h.x, h.y + 1, h.z], [h.x, h.y - 1, h.z], [h.x + 1, h.y, h.z], [h.x - 1, h.y, h.z], [h.x, h.y, h.z + 1], [h.x, h.y, h.z - 1]]) if (this.tryPortal(c)) return;
+    if (E.get_block(p[0], p[1], p[2]) || E.player_overlaps(p[0], p[1], p[2])) return;
+    if (!E.solid_at(p[0] + 0.5, p[1] - 0.5, p[2] + 0.5)) return warn('Fire needs a block underneath it.');
+    setBlock(p[0], p[1], p[2], LAVA); G.fires.push({ x: p[0], y: p[1], z: p[2], t: 4 });
+    say(h.id === OBSIDIAN ? 'Fire! For a portal, the frame must be <b>2 wide and 3 tall inside</b>, all obsidian.' : 'You lit a fire. It will burn out soon.', 3500);
+  },
+  tryPortal([px, py, pz]) {
+    const ob = (c) => E.get_block(c[0], c[1], c[2]) === OBSIDIAN;
+    const open = (c) => { const b = E.get_block(c[0], c[1], c[2]); return b === 0 || (b === LAVA && this.isFire(c[0], c[1], c[2])); };
+    for (const axis of ['x', 'z']) for (const d of [-1, 0]) for (const dy of [-2, -1, 0]) {
+      const x0 = axis === 'x' ? px + d : px, z0 = axis === 'z' ? pz + d : pz, y0 = py + dy;
+      const at = (i, j) => axis === 'x' ? [x0 + i, y0 + j, z0] : [x0, y0 + j, z0 + i];
+      let ok = true;
+      for (let i = 0; i <= 1 && ok; i++) for (let j = 0; j <= 2 && ok; j++) if (!open(at(i, j))) ok = false;
+      for (let i = 0; i <= 1 && ok; i++) if (!ob(at(i, -1)) || !ob(at(i, 3))) ok = false;
+      for (let j = 0; j <= 2 && ok; j++) if (!ob(at(-1, j)) || !ob(at(2, j))) ok = false;
+      if (!ok) continue;
+      G.fires = G.fires.filter((f) => !(f.y >= y0 && f.y <= y0 + 2 && (axis === 'x' ? f.z === z0 && f.x >= x0 && f.x <= x0 + 1 : f.x === x0 && f.z >= z0 && f.z <= z0 + 1)));
+      for (let i = 0; i <= 1; i++) for (let j = 0; j <= 2; j++) { const c = at(i, j); setBlock(c[0], c[1], c[2], PORTAL); }
+      const portal = { x0, y0, z0, axis };
+      if (G.dim === 'over') G.overPortal = portal;
+      G.portalLit = true;
+      banner('NETHER PORTAL LIT!', 'Step inside and wait a moment to travel.', '#a35cff', 3500);
+      return true;
+    }
+    return false;
+  },
+  breakPortalsNear(x, y, z) {
+    for (let dx = -3; dx <= 3; dx++) for (let dy = -4; dy <= 4; dy++) for (let dz = -3; dz <= 3; dz++)
+      if (E.get_block(x + dx, y + dy, z + dz) === PORTAL) setBlock(x + dx, y + dy, z + dz, 0);
+  },
+  // where to stand in front of a portal
+  portalFront(p) {
+    for (const side of [1, -1]) {
+      const fx = p.axis === 'x' ? p.x0 + 1 : p.x0 + 0.5 + side * 1.5;
+      const fz = p.axis === 'x' ? p.z0 + 0.5 + side * 1.5 : p.z0 + 1;
+      const g = E.ground_at(fx, p.y0 + 2, fz);
+      if (g > 0 && g <= p.y0 + 1 && !E.solid_at(fx, g + 0.5, fz) && !E.solid_at(fx, g + 1.5, fz)) return [fx, g, fz];
+    }
+    return null;
+  },
+  snapshot() { const a = new Uint8Array(WSIZE); let i = 0; for (let y = 0; y < 40; y++) for (let z = 0; z < 64; z++) for (let x = 0; x < 64; x++) a[i++] = E.get_block(x, y, z); return a; },
+  restore(a) { let i = 0; for (let y = 0; y < 40; y++) for (let z = 0; z < 64; z++) for (let x = 0; x < 64; x++) E.set_block(x, y, z, a[i++]); worldDirty = true; },
+  genNether() {
+    E.generate_scene(1, 666);
+    const rnd = seeded(666);
+    for (let y = 0; y < 40; y++) for (let z = 0; z < 64; z++) for (let x = 0; x < 64; x++) {
+      const b = E.get_block(x, y, z); if (!b) continue;
+      E.set_block(x, y, z, b === 5 || b === 6 ? 0 : b === 4 ? LAVA : b === 19 || b === 18 ? 19 : b === 20 ? 24 : NETHERRACK);
+    }
+    // a lava sea below the island and a rocky ceiling with glowstone
+    for (let z = 0; z < 64; z++) for (let x = 0; x < 64; x++) {
+      for (let y = 0; y <= 6; y++) if (!E.get_block(x, y, z)) E.set_block(x, y, z, LAVA);
+      const c = 34 + Math.floor(rnd() * 3) - (rnd() < 0.08 ? 3 + Math.floor(rnd() * 4) : 0);
+      for (let y = Math.max(c, 28); y < 40; y++) E.set_block(x, y, z, NETHERRACK);
+      if (rnd() < 0.035) for (let dx = 0; dx <= 1; dx++) for (let dz = 0; dz <= 1; dz++) if (x + dx < 64 && z + dz < 64) { const cy = Math.max(c, 28) - 1; E.set_block(x + dx, cy, z + dz, 21); if (rnd() < 0.5) E.set_block(x + dx, cy - 1, z + dz, 21); }
+    }
+    // a flat landing pad with a lit portal back home
+    const g0 = E.ground_at(35.5, 30, 32.5) - 1;
+    for (let x = 32; x <= 39; x++) for (let z = 29; z <= 36; z++) { E.set_block(x, g0, z, NETHERRACK); for (let y = g0 + 1; y <= g0 + 6; y++) E.set_block(x, y, z, 0); for (let y = g0 - 1; y >= g0 - 3; y--) if (!E.get_block(x, y, z) || E.get_block(x, y, z) === LAVA) E.set_block(x, y, z, NETHERRACK); }
+    const x0 = 35, z0 = 32, y0 = g0 + 2;
+    G.netherFrame = new Set();
+    const frame = (x, y) => { E.set_block(x, y, z0, OBSIDIAN); G.netherFrame.add(posKey(x, y, z0)); };
+    for (let i = -1; i <= 2; i++) { frame(x0 + i, y0 - 1); frame(x0 + i, y0 + 3); }
+    for (let j = 0; j <= 2; j++) { frame(x0 - 1, y0 + j); frame(x0 + 2, y0 + j); for (let i = 0; i <= 1; i++) E.set_block(x0 + i, y0 + j, z0, PORTAL); }
+    G.netherPortal = { x0, y0, z0, axis: 'x' };
+    G.netherSpawn = [36, g0 + 1, 34.5];
+  },
+  travel() {
+    const to = G.dim === 'over' ? 'nether' : 'over';
+    G.saved[G.dim] = { world: this.snapshot(), tables: G.tables, furnaceAt: G.furnaceAt, fires: G.fires, mobs: G.mobs };
+    if (G.saved[to]) {
+      const s = G.saved[to];
+      this.restore(s.world); G.tables = s.tables; G.furnaceAt = s.furnaceAt; G.fires = s.fires; G.mobs = s.mobs;
+    } else {
+      this.genNether(); G.tables = new Set(); G.furnaceAt = new Set(); G.fires = []; G.mobs = [];
+    }
+    G.dim = to; worldDirty = true;
+    const spawn = to === 'nether' ? G.netherSpawn : G.overSpawn;
+    E.set_spawn(spawn[0], spawn[1], spawn[2]);
+    const front = to === 'nether' ? G.netherSpawn : (G.overPortal && this.portalFront(G.overPortal)) || G.overSpawn;
+    E.set_player(front[0], front[1], front[2]);
+    yaw = to === 'nether' ? 0 : yaw; G.peak = null; G.portalT = 0; G.portalCool = 1; G.lavaT = 0;
+    $('portalfx').style.opacity = '0';
+    if (to === 'nether') { G.wentNether = true; banner('THE NETHER', 'Hot, red and full of lava. Walk back through the portal to go home.', '#ff5a2a', 4000); }
+    else banner('THE OVERWORLD', 'Welcome home!', '#6fbf4a', 2500);
+  },
+  // ----- animals -----
+  spawnMob(type, minDist) {
+    for (let tries = 0; tries < 60; tries++) {
+      const x = 4 + Math.random() * 56, z = 4 + Math.random() * 56;
+      if (Math.hypot(x - E.player_x(), z - E.player_z()) < minDist) continue;
+      const g = E.ground_at(x, 30, z);
+      if (g < 5 || E.get_block(Math.floor(x), g - 1, Math.floor(z)) !== 1) continue;
+      if (E.solid_at(x, g + 0.5, z) || E.solid_at(x, g + 1.5, z)) continue;
+      const s = MOBS[type];
+      G.mobs.push({ type, x, y: g, z, yaw: Math.random() * 6.28, hp: s.hp, hit: 0, flee: 0, turn: Math.random() * 3, walking: false, phase: 0, vy: 0, kx: 0, kz: 0 });
+      return true;
+    }
+    return false;
+  },
+  mobStep(m, dt) {
+    const s = MOBS[m.type], px = E.player_x(), pz = E.player_z();
+    m.hit = Math.max(0, m.hit - dt); m.flee = Math.max(0, m.flee - dt);
+    let speed = 0;
+    if (m.flee > 0) { m.yaw = Math.atan2(m.x - px, m.z - pz) + Math.sin(m.flee * 3) * 0.6; speed = 3.4; }
+    else {
+      m.turn -= dt;
+      if (m.turn <= 0) { m.walking = Math.random() < 0.55; m.yaw += (Math.random() - 0.5) * 2.6; m.turn = 1.5 + Math.random() * 3.5; }
+      speed = m.walking ? s.speed : 0;
+    }
+    const damp = Math.pow(0.02, dt); m.kx *= damp; m.kz *= damp;
+    const vx = Math.sin(m.yaw) * speed + m.kx, vz = Math.cos(m.yaw) * speed + m.kz;
+    if (Math.abs(vx) + Math.abs(vz) > 0.01) {
+      const nx = Math.max(1, Math.min(63, m.x + vx * dt)), nz = Math.max(1, Math.min(63, m.z + vz * dt));
+      const g = E.ground_at(nx, m.y + 1.2, nz), below = E.get_block(Math.floor(nx), g - 1, Math.floor(nz));
+      const clear = !E.solid_at(nx, g + 0.3, nz) && (s.h < 1 || !E.solid_at(nx, g + 1.2, nz));
+      if (g <= m.y + 1.05 && g >= m.y - 3 && g > 0 && clear && below !== WATER && below !== LAVA) {
+        m.x = nx; m.z = nz; if (g > m.y && m.vy <= 0) m.y = g;
+        m.phase += dt * Math.hypot(vx, vz) * 4;
+      } else { m.yaw += Math.PI * (0.5 + Math.random()); m.turn = 0.8; m.kx = 0; m.kz = 0; }
+    }
+    const g2 = E.ground_at(m.x, m.y + 0.5, m.z);
+    if (m.y > g2 || m.vy > 0) { m.vy -= 22 * dt; m.y = Math.max(g2, m.y + m.vy * dt); if (m.y <= g2) m.vy = 0; } else m.y = g2;
+    if (m.y < -5) m.dead = true;
+  },
+  // ----- every frame -----
+  update(dt, ret) {
+    G.t += dt;
+    if (ret === -1) { G.peak = null; say('You fell off the island! Back to spawn.', 4000); }
+    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+    const cell = (y) => E.get_block(Math.floor(px), Math.floor(y), Math.floor(pz));
+    // lava and fire burn
+    const burning = [py + 0.1, py + 1].some((y) => cell(y) === LAVA);
+    if (burning) { G.lavaT -= dt; if (G.lavaT <= 0) { G.lavaT = 0.5; this.hurt(2, 'You burned in lava'); if (G.hp > 4 && Math.random() < 0.4) warn('Ouch! Get out of the lava!'); } }
+    else G.lavaT = 0;
+    // fall damage
+    const ground = E.player_on_ground();
+    if (!ground) G.peak = Math.max(G.peak ?? py, py);
+    else if (G.peak != null) {
+      const fall = G.peak - py; G.peak = null;
+      if (fall > 3.5 && cell(py + 0.1) !== WATER) this.hurt(Math.floor(fall - 3), 'You fell too far');
+    }
+    // fell into the void
+    if (py < -3) { this.hurt(20, 'You fell out of the world'); }
+    // slow healing
+    if (G.hp < 20) { G.regen += dt; if (G.regen > 4) { G.regen = 0; this.heal(1); } }
+    // fires burn out
+    for (const f of G.fires) { f.t -= dt; if (f.t <= 0 && E.get_block(f.x, f.y, f.z) === LAVA) setBlock(f.x, f.y, f.z, 0); }
+    G.fires = G.fires.filter((f) => f.t > 0);
+    // standing in a portal for 2 seconds takes you through
+    G.portalCool = Math.max(0, G.portalCool - dt);
+    const inPortal = [py + 0.1, py + 1].some((y) => cell(y) === PORTAL);
+    if (inPortal && G.portalCool <= 0) {
+      G.portalT += dt; $('portalfx').style.opacity = String(Math.min(1, G.portalT / 2));
+      if (G.portalT >= 2) this.travel();
+    } else if (G.portalT > 0) { G.portalT = Math.max(0, G.portalT - dt * 2); $('portalfx').style.opacity = String(Math.min(1, G.portalT / 2)); }
+    // animals
+    if (G.dim === 'over') {
+      for (const m of G.mobs) this.mobStep(m, dt);
+      G.mobs = G.mobs.filter((m) => !m.dead);
+      G.mobSpawnT += dt;
+      if (G.mobSpawnT > 20 && G.mobs.length < 9) { G.mobSpawnT = 0; this.spawnMob(['cow', 'pig', 'sheep', 'chicken'][Math.floor(Math.random() * 4)], 16); }
+    }
+    GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) banner('GOAL COMPLETE', name, '#6fbf4a', 2400); } });
+    if (G.done[GOALS.length - 1] && !G.won) {
+      G.won = true;
+      const best = store.get('survivalBest'); const rec = best == null || G.t < best; if (rec) store.set('survivalBest', G.t);
+      showResult('YOU REACHED THE NETHER!', '#ff5a2a', 'You beat Survival: diamonds, obsidian, flint and steel, and a Nether portal.', [
+        ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')], ['Best', fmtTime(rec ? G.t : best)],
+        ['Diamonds mined', G.diamondsMined], ['Iron smelted', G.smelted], ['Obsidian made', G.obsidianMade],
+      ], true);
+    }
+  },
   draw(V, I) {
     for (const k of G.tables) {
       const [x, y, z] = k.split(',').map(Number), o = [x + 0.5, y, z + 0.5];
@@ -1007,48 +1365,48 @@ const Survival = {
         pushBox(V, I, o, [sx * 0.507, 0.28, sz * 0.507], [sz ? 0.18 : 0.006, 0.05, sx ? 0.18 : 0.006], [1, 0.55, 0.15], 0, 3);
       }
     }
+    for (const m of G.mobs) this.drawMob(V, I, m);
   },
-  useBucket() {
-    if (!G.bucket) return warn('Craft a bucket first (3 iron ingots).');
-    const h = rayAny(5);
-    if (G.bucket === 1) {
-      if (h && h.id === WATER) { G.bucket = 2; G.filled = true; say('Filled your bucket with <b>water</b>!', 4000); this.hot(); }
-      else warn('Aim at water to fill your bucket. There is a pond near spawn.');
-      return;
-    }
-    if (h && h.id === LAVA) { this.cool(h.x, h.y, h.z); G.bucket = 1; this.hot(); return; }
-    if (h && h.id !== WATER && h.prev) {
-      const [x, y, z] = h.prev;
-      if (!E.get_block(x, y, z) && !E.player_overlaps(x, y, z)) {
-        setBlock(x, y, z, WATER); G.bucket = 1;
-        // water touching lava cools it, like in the real game
-        for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) if (E.get_block(x + dx, y + dy, z + dz) === LAVA) this.cool(x + dx, y + dy, z + dz);
-        this.hot(); return;
-      }
-    }
-    warn('Aim at lava to turn it into obsidian.');
-  },
-  cool(x, y, z) {
-    setBlock(x, y, z, OBSIDIAN); G.obsidianMade++;
-    say('Sssss! The lava cooled into <b>obsidian</b>. Mine it with a diamond pickaxe.', 6000);
-  },
-  update(dt, ret) {
-    G.t += dt;
-    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
-    const inLava = [py + 0.1, py + 1].some((y) => E.get_block(Math.floor(px), Math.floor(y), Math.floor(pz)) === LAVA);
-    if (inLava) {
-      $('hurt').style.opacity = '1'; setTimeout(() => { $('hurt').style.opacity = '0'; }, 250);
-      E.respawn_player(); say('Ouch, <b>lava</b>! You woke up at spawn. Your items are safe.', 5000);
-    }
-    if (ret === -1) say('You fell off the island! Back to spawn.', 4000);
-    GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) banner('GOAL COMPLETE', name, '#6fbf4a', 2400); } });
-    if (G.done[GOALS.length - 1] && !G.won) {
-      G.won = true;
-      const best = store.get('survivalBest'); const rec = best == null || G.t < best; if (rec) store.set('survivalBest', G.t);
-      showResult('SURVIVAL COMPLETE!', '#a35cff', 'You smelted iron, crafted a diamond pickaxe and mined obsidian.', [
-        ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')], ['Best', fmtTime(rec ? G.t : best)],
-        ['Diamonds mined', G.diamondsMined], ['Iron smelted', G.smelted], ['Obsidian made', G.obsidianMade],
-      ], true);
+  drawMob(V, I, m) {
+    const o = [m.x, m.y, m.z], yw = m.yaw, f = m.hit > 0;
+    const C = (c) => f ? [Math.min(1, c[0] * 0.5 + 0.6), c[1] * 0.4, c[2] * 0.4] : c;
+    const box = (c, h, col, mat) => pushBox(V, I, o, c, h, C(col), yw, mat || 0);
+    const sw = Math.sin(m.phase) * 0.09;
+    const legs = (x, z, hy, w, col) => { for (const [sx, sz, p] of [[1, 1, 1], [-1, 1, -1], [1, -1, -1], [-1, -1, 1]]) box([sx * x, hy, sz * z + sw * p], [w, hy, w], col); };
+    const eyes = (y, z, x) => { for (const s of [1, -1]) box([s * x, y, z], [0.035, 0.035, 0.006], [0.05, 0.05, 0.05]); };
+    if (m.type === 'cow') {
+      const B = [0.36, 0.24, 0.16], W = [0.92, 0.9, 0.86];
+      legs(0.2, 0.42, 0.27, 0.1, B);
+      box([0, 0.86, 0], [0.36, 0.3, 0.62], B);
+      box([0.362, 0.9, 0.12], [0.004, 0.16, 0.22], W); box([-0.362, 0.86, -0.22], [0.004, 0.14, 0.18], W); box([0, 1.162, -0.1], [0.2, 0.004, 0.2], W);
+      box([0, 1.05, 0.78], [0.25, 0.24, 0.17], B);
+      box([0, 0.94, 0.955], [0.17, 0.1, 0.012], [0.88, 0.68, 0.62]);
+      eyes(1.1, 0.955, 0.13);
+      for (const s of [1, -1]) box([s * 0.22, 1.32, 0.76], [0.035, 0.06, 0.035], [0.9, 0.88, 0.8]);
+    } else if (m.type === 'pig') {
+      const P = [0.94, 0.63, 0.62];
+      legs(0.17, 0.3, 0.15, 0.08, P);
+      box([0, 0.55, 0], [0.3, 0.25, 0.46], P);
+      box([0, 0.66, 0.58], [0.23, 0.22, 0.15], P);
+      box([0, 0.6, 0.745], [0.11, 0.075, 0.02], [0.86, 0.46, 0.52]);
+      for (const s of [1, -1]) box([s * 0.045, 0.6, 0.768], [0.02, 0.025, 0.005], [0.45, 0.2, 0.25]);
+      eyes(0.72, 0.735, 0.13);
+    } else if (m.type === 'sheep') {
+      const Wl = [0.93, 0.93, 0.89], F = [0.86, 0.76, 0.66];
+      legs(0.18, 0.36, 0.27, 0.08, F);
+      box([0, 0.86, 0], [0.37, 0.33, 0.55], Wl);
+      box([0, 1.04, 0.62], [0.18, 0.2, 0.17], F);
+      box([0, 1.16, 0.6], [0.2, 0.08, 0.18], Wl);
+      eyes(1.07, 0.795, 0.09);
+    } else {
+      const Wh = [0.97, 0.97, 0.95], Y = [0.95, 0.65, 0.2];
+      for (const s of [1, -1]) box([s * 0.07, 0.12, sw * s], [0.02, 0.12, 0.02], Y);
+      box([0, 0.42, 0], [0.17, 0.18, 0.22], Wh);
+      for (const s of [1, -1]) box([s * 0.185, 0.45, 0], [0.02, 0.11, 0.15], [0.9, 0.9, 0.88]);
+      box([0, 0.72, 0.17], [0.11, 0.14, 0.1], Wh);
+      box([0, 0.7, 0.3], [0.06, 0.035, 0.04], Y);
+      box([0, 0.62, 0.275], [0.03, 0.045, 0.02], [0.85, 0.15, 0.15]);
+      eyes(0.77, 0.275, 0.07);
     }
   },
   board() {
@@ -1056,9 +1414,10 @@ const Survival = {
     const doneN = GOALS.length - left.length;
     const goals = left.length ? left.slice(0, 3).map(([n], j) => row((j === 0 ? '▸ ' : '☐ ') + n, '', j === 0 ? 'next' : '')).join('') : row('✓ All goals done!', '', 'done');
     const bucket = G.bucket === 2 ? 'Water' : G.bucket === 1 ? 'Empty' : '—';
-    return `<h2>SURVIVAL</h2>${row('Time', fmtTime(G.t))}${row('Tool', TOOLS[G.tool])}${row('Depth (y)', Math.floor(E.player_y()))}<hr>`
+    const food = Object.keys(FOOD).reduce((n, k) => n + G.items[k], 0);
+    return `<h2>SURVIVAL</h2>${row('World', G.dim === 'nether' ? '<span style="color:#ff6a3a">Nether</span>' : 'Overworld')}${row('Time', fmtTime(G.t))}${row('Tool', TOOLS[G.tool])}${row('Depth (y)', Math.floor(E.player_y()))}<hr>`
       + `${row('Goals', doneN + ' of ' + GOALS.length)}${goals}<hr>`
-      + `${row('Coal', G.items.coal)}${row('Raw iron', G.items.rawIron)}${row('Iron ingots', G.items.iron)}${row('Raw gold', G.items.rawGold)}${row('Gold ingots', G.items.gold)}${row('Diamonds', G.items.diamond)}${row('Bucket', bucket)}`;
+      + `${row('Coal', G.items.coal)}${row('Iron (raw / ingots)', G.items.rawIron + ' / ' + G.items.iron)}${row('Gold (raw / ingots)', G.items.rawGold + ' / ' + G.items.gold)}${row('Diamonds', G.items.diamond)}${row('Obsidian', G.inv[OBSIDIAN] || 0)}${row('Flint', G.items.flint)}${row('Food', food)}${row('Bucket', bucket)}`;
   },
 };
 
@@ -1469,7 +1828,8 @@ function loadWorld(mode) {
 }
 function resetHud() {
   $('minebar').hidden = true; $('prompt').hidden = true; $('ridebar').hidden = true;
-  closeMenu(); closeCraft(); $('result').hidden = true; $('vote').hidden = true; clearInterval(voteTimer); mouseHeld = false; touchUse = false;
+  closeMenu(); closeCraft(); $('result').hidden = true; $('vote').hidden = true; clearInterval(voteTimer);
+  $('hearts').hidden = true; $('portalfx').style.opacity = '0'; mouseHeld = false; touchUse = false;
   chatEl.innerHTML = ''; bannerT = 0; if (!joining) $('toast').hidden = true;
 }
 function loadGame(i) {
@@ -1605,7 +1965,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -1663,7 +2023,8 @@ function frame(now) {
   const fovBase = 70 * Math.PI / 180, fov = fovBase + (riding ? Math.min(0.35, speed / 70) : 0);
   const asp = canvas.width / canvas.height;
   const P = persp(fov, asp, 0.05, 260), L = look(eye, dir), VP = mul(P, L.m);
-  const fog = [0.74, 0.86, 0.97];
+  const nether = scene === 'survival' && G && G.dim === 'nether';
+  const fog = nether ? [0.32, 0.07, 0.05] : [0.74, 0.86, 0.97];
 
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(fog[0], fog[1], fog[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1671,6 +2032,7 @@ function frame(now) {
   gl.disable(gl.DEPTH_TEST); gl.useProgram(sky.p); gl.bindVertexArray(skyVao);
   gl.uniform3fv(sky.u.uR, L.r); gl.uniform3fv(sky.u.uU, [L.r[1]*dir[2]-L.r[2]*dir[1], L.r[2]*dir[0]-L.r[0]*dir[2], L.r[0]*dir[1]-L.r[1]*dir[0]]);
   gl.uniform3fv(sky.u.uF, dir); gl.uniform3fv(sky.u.uEye, eye); gl.uniform1f(sky.u.uTan, Math.tan(fov / 2)); gl.uniform1f(sky.u.uAsp, asp); gl.uniform1f(sky.u.uTime, T); gl.uniform3fv(sky.u.uFog, fog);
+  gl.uniform3fv(sky.u.uZen, nether ? [0.18, 0.03, 0.02] : [0.33, 0.58, 0.92]); gl.uniform3fv(sky.u.uLow, nether ? [0.26, 0.05, 0.03] : [0.52, 0.7, 0.92]); gl.uniform1f(sky.u.uDay, nether ? 0 : 1);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   // world
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
