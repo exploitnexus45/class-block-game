@@ -112,6 +112,17 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
 #resKeep { margin-top: 16px; }
 #resKeep + .row2 { margin-top: 8px; }
 .fnote { margin: 0 0 4px; font-size: 20px; color: var(--ink-dim); }
+.fnote b { color: var(--gold); font-weight: 400; }
+#craft .card { max-height: calc(100vh - 32px); overflow-y: auto; }
+h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06em; color: var(--ink-dim); text-transform: uppercase; }
+.invgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.tile { position: relative; display: grid; justify-items: center; gap: 2px; padding: 6px 4px 4px; background: #2a2636; border: 0; color: var(--ink); font-family: var(--body); box-shadow: inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo); min-width: 0; }
+.tile.click { cursor: pointer; }
+.tile.click:hover, .tile.click:focus-visible { background: #363146; outline: none; }
+.tile.on { outline: 2px solid var(--gold); outline-offset: -2px; }
+.tile .sw { width: 26px; height: 26px; box-shadow: inset 3px 3px 0 rgba(255,255,255,.25), inset -3px -3px 0 rgba(0,0,0,.35); }
+.tile .n { position: absolute; right: 5px; top: 22px; font-size: 18px; text-shadow: 2px 2px 0 #000; }
+.tile .lb { font-size: 15px; line-height: 1; color: var(--ink-dim); text-align: center; text-wrap: balance; }
 #board .row.next span:first-child { color: var(--gold); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .btn.alt { background: #4a4458; }
@@ -226,7 +237,7 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
       <kbd>Q</kbd><span>Whistle for Nugget</span>
       <kbd>CLICK</kbd><span>Mine, break or throw (in games)</span>
       <kbd>RIGHT-CLICK</kbd><span>Hold for turbo on Nugget · place blocks in games</span>
-      <kbd>E</kbd><span>Game menu</span>
+      <kbd>E</kbd><span>Game menu · inventory in Survival</span>
       <kbd>B</kbd><span>Back to the lobby</span>
       <kbd>MOUSE</kbd><span>Look around (Esc frees the cursor)</span>
     </div>
@@ -724,24 +735,28 @@ function tryPlace(id, allow) {
 }
 
 // ---------- SURVIVAL ----------
-// Progression: wood → stone → furnace + smelt iron → iron pick → diamonds → diamond pick
-// → bucket → water → pour on cave lava → obsidian → mine it with the diamond pick.
+// Progression: logs → planks → crafting table → wood/stone picks → furnace + smelt iron → iron pick
+// → diamonds → diamond pick → bucket → water → pour on cave lava → obsidian → mine it with the diamond pick.
 const TOOLS = ['Bare hands', 'Wooden pickaxe', 'Stone pickaxe', 'Iron pickaxe', 'Diamond pickaxe'];
 const TOOL_SPEED = [1, 2, 3, 4.2, 6];
 const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [2, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [7, 4] };
 const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'rawIron', 19: 'rawGold', 20: 'diamond' };
 const ITEM = { coal: 'Coal', rawIron: 'Raw iron', rawGold: 'Raw gold', iron: 'Iron ingot', gold: 'Gold ingot', diamond: 'Diamond' };
-const LAVA = 15, WATER = 4, FURNACE = 8, OBSIDIAN = 11;
+const ITEM_COL = { coal: '#2b2b2e', rawIron: '#c9a07a', rawGold: '#e8c040', iron: '#d8d8d8', gold: '#ffd933', diamond: '#59f2f2' };
+const LAVA = 15, WATER = 4, FURNACE = 8, OBSIDIAN = 11, TABLE = 100; // a crafting table is a planks block the game remembers
+BLOCK[TABLE] = ['Crafting table', '#a8743c'];
 const sName = (id) => id === FURNACE ? 'Furnace' : BLOCK[id][0];
+const posKey = (x, y, z) => x + ',' + y + ',' + z;
 const RECIPES = [
   { name: '4 Planks', need: { 5: 1 }, block: 7, make: () => Survival.add(7, 4) },
-  { name: 'Wooden pickaxe', need: { 7: 3 }, tool: 1 },
-  { name: 'Stone pickaxe', need: { 9: 3, 7: 2 }, tool: 2 },
-  { name: 'Furnace', need: { 9: 8 }, block: FURNACE, make: () => Survival.add(FURNACE, 1) },
-  { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3 },
-  { name: 'Bucket', need: { iron: 3 }, bucket: true, make: () => { G.bucket = 1; } },
-  { name: 'Diamond pickaxe', need: { diamond: 3, 7: 2 }, tool: 4 },
-  { name: 'Gold block', need: { gold: 4 }, block: 10, make: () => Survival.add(10, 1) },
+  { name: 'Crafting table', need: { 7: 4 }, block: TABLE, make: () => { Survival.add(TABLE, 1); G.tableCrafted = true; } },
+  { name: 'Wooden pickaxe', need: { 7: 3 }, tool: 1, table: true },
+  { name: 'Stone pickaxe', need: { 9: 3, 7: 2 }, tool: 2, table: true },
+  { name: 'Furnace', need: { 9: 8 }, block: FURNACE, table: true, make: () => Survival.add(FURNACE, 1) },
+  { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3, table: true },
+  { name: 'Bucket', need: { iron: 3 }, bucket: true, table: true, make: () => { G.bucket = 1; Survival.giveBucket(); } },
+  { name: 'Diamond pickaxe', need: { diamond: 3, 7: 2 }, tool: 4, table: true },
+  { name: 'Gold block', need: { gold: 4 }, block: 10, table: true, make: () => Survival.add(10, 1) },
 ];
 const SMELT = [
   { name: 'Iron ingot', from: 'rawIron', to: 'iron', col: '#d8d8d8' },
@@ -751,18 +766,35 @@ const have = (k) => isNaN(k) ? G.items[k] : (G.inv[k] || 0);
 const recipeDone = (r) => (r.tool && G.tool >= r.tool) || (r.bucket && G.bucket);
 const canCraft = (r) => !recipeDone(r) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
 const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : sName(+k)}`).join(' + ');
-let craftMode = 'craft';
-function openCraft() { if (scene !== 'survival' || !G || G.over) return; craftMode = 'craft'; renderCraft(); $('craft').hidden = false; releaseMouse(); }
-function openFurnace() { if (scene !== 'survival' || !G || G.over) return; craftMode = 'furnace'; renderCraft(); $('craft').hidden = false; releaseMouse(); }
+let craftMode = 'inv';
+function openPanel(mode) { if (scene !== 'survival' || !G || G.over) return; craftMode = mode; renderCraft(); $('craft').hidden = false; releaseMouse(); }
+const openInv = () => openPanel('inv'), openTable = () => openPanel('table'), openFurnace = () => openPanel('furnace');
 function closeCraft() { $('craft').hidden = true; }
 $('craftClose').addEventListener('click', () => { closeCraft(); lockMouse(); });
+function recipeButton(r, el) {
+  const b = document.createElement('button'); b.className = 'game';
+  b.disabled = !canCraft(r);
+  const col = r.tool ? (r.tool === 4 ? '#59f2f2' : '#b8c0c8') : r.bucket ? '#b8c0c8' : blockCol(r.block);
+  b.innerHTML = `<i style="background:${col}"></i><span>${r.name}</span><em>${recipeDone(r) ? 'crafted ✓' : needText(r)}</em>`;
+  b.addEventListener('click', () => {
+    if (!canCraft(r)) return;
+    for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
+    if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); } else r.make();
+    if (r.block === TABLE) say('Crafting table made! Put it in your hotbar, place it (right-click), then right-click it to craft tools.', 8000);
+    if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
+    if (r.bucket) say('Bucket crafted! Right-click water with it to fill it.', 7000);
+    Survival.hot(); renderCraft();
+  });
+  el.appendChild(b);
+}
+const heading = (el, text) => { const h = document.createElement('h3'); h.className = 'sec'; h.textContent = text; el.appendChild(h); };
+const note = (el, text) => { const p = document.createElement('p'); p.className = 'fnote'; p.innerHTML = text; el.appendChild(p); };
 function renderCraft() {
   const el = $('recipes'); el.innerHTML = '';
+  $('craftClose').textContent = craftMode === 'inv' ? 'CLOSE (E)' : 'DONE';
   if (craftMode === 'furnace') {
     $('craftT').textContent = 'FURNACE';
-    const p = document.createElement('p'); p.className = 'fnote';
-    p.textContent = `Each smelt burns 1 coal. You have ${G.items.coal} coal.`;
-    el.appendChild(p);
+    note(el, `Each smelt burns 1 coal. You have ${G.items.coal} coal.`);
     SMELT.forEach((r) => {
       const n = Math.min(G.items[r.from], G.items.coal);
       const b = document.createElement('button'); b.className = 'game';
@@ -779,22 +811,36 @@ function renderCraft() {
     });
     return;
   }
-  $('craftT').textContent = 'CRAFTING';
-  RECIPES.forEach((r) => {
-    const b = document.createElement('button'); b.className = 'game';
-    b.disabled = !canCraft(r);
-    const col = r.tool ? (r.tool === 4 ? '#59f2f2' : '#b8c0c8') : r.bucket ? '#b8c0c8' : blockCol(r.block);
-    b.innerHTML = `<i style="background:${col}"></i><span>${r.name}</span><em>${recipeDone(r) ? 'crafted ✓' : needText(r)}</em>`;
-    b.addEventListener('click', () => {
-      if (!canCraft(r)) return;
-      for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
-      if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); } else r.make();
-      if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
-      if (r.bucket) say('Bucket crafted! It is in slot <b>8</b>. Right-click water to fill it.', 7000);
-      Survival.hot(); renderCraft();
-    });
-    el.appendChild(b);
+  if (craftMode === 'table') {
+    $('craftT').textContent = 'CRAFTING TABLE';
+    RECIPES.forEach((r) => recipeButton(r, el));
+    return;
+  }
+  // inventory: pocket crafting, everything you carry, and what you are holding
+  $('craftT').textContent = 'INVENTORY';
+  heading(el, 'Crafting (2×2)');
+  RECIPES.filter((r) => !r.table).forEach((r) => recipeButton(r, el));
+  note(el, G.tables.size ? 'Tools, furnaces and buckets: right-click your <b>crafting table</b>.' : 'Tools, furnaces and buckets need a <b>crafting table</b>. Craft one here, then place it.');
+  heading(el, `Items · click a block to put it in hotbar slot ${selected + 1}`);
+  const grid = document.createElement('div'); grid.className = 'invgrid'; el.appendChild(grid);
+  const tile = (label, col, count, onClick, on) => {
+    const t = document.createElement(onClick ? 'button' : 'div'); t.className = 'tile' + (on ? ' on' : '') + (onClick ? ' click' : '');
+    t.title = label; t.setAttribute('aria-label', `${label}: ${count}`);
+    t.innerHTML = `<span class="sw" style="background:${col}"></span><span class="n">${count}</span><span class="lb">${label}</span>`;
+    if (onClick) t.addEventListener('click', onClick);
+    grid.appendChild(t);
+  };
+  let any = false;
+  Object.keys(G.inv).map(Number).filter((id) => G.inv[id] > 0).forEach((id) => {
+    any = true; tile(sName(id), blockCol(id), G.inv[id], () => { Survival.toSlot(id); renderCraft(); }, G.hot.includes(id));
   });
+  if (G.bucket) { any = true; tile(G.bucket === 2 ? 'Water bucket' : 'Bucket', G.bucket === 2 ? '#3a78e0' : '#b8c0c8', 1, () => { Survival.toSlot('bucket'); renderCraft(); }, G.hot.includes('bucket')); }
+  Object.keys(ITEM).filter((k) => G.items[k] > 0).forEach((k) => { any = true; tile(ITEM[k], ITEM_COL[k], G.items[k], null, false); });
+  if (!any) note(el, 'Nothing yet. Hold click on a tree to collect logs.');
+  note(el, `Pickaxe: <b>${TOOLS[G.tool]}</b>`);
+  const m = document.createElement('button'); m.className = 'btn alt'; m.textContent = 'PAUSE MENU';
+  m.addEventListener('click', () => { closeCraft(); openMenu(); });
+  el.appendChild(m);
 }
 // any block along the view ray, including water and lava (the engine's ray skips those)
 function rayAny(reach) {
@@ -809,9 +855,11 @@ function rayAny(reach) {
   return null;
 }
 const GOALS = [
+  ['Craft a crafting table', () => G.tableCrafted],
+  ['Place the crafting table', () => G.tables.size >= 1],
   ['Craft a wooden pickaxe', () => G.tool >= 1],
   ['Craft a stone pickaxe', () => G.tool >= 2],
-  ['Build and place a furnace', () => G.furnaces >= 1],
+  ['Build and place a furnace', () => G.furnaceAt.size >= 1],
   ['Smelt 3 iron ingots', () => G.smelted >= 3],
   ['Craft an iron pickaxe', () => G.tool >= 3],
   ['Mine 3 diamonds', () => G.diamondsMined >= 3],
@@ -825,11 +873,12 @@ function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 10
 const Survival = {
   title: 'SURVIVAL', yaw: 0, outline: true, use: 'MINE',
   init() {
-    G = { t: 0, inv: {}, order: [], items: { coal: 0, rawIron: 0, rawGold: 0, iron: 0, gold: 0, diamond: 0 }, tool: 0, mine: null,
-      done: GOALS.map(() => false), furnaces: 0, smelted: 0, diamondsMined: 0, bucket: 0, filled: false, obsidianMade: 0, obsidianMined: 0, caves: [], won: false };
+    G = { t: 0, inv: {}, hot: Array(9).fill(null), items: { coal: 0, rawIron: 0, rawGold: 0, iron: 0, gold: 0, diamond: 0 }, tool: 0, mine: null,
+      done: GOALS.map(() => false), tables: new Set(), furnaceAt: new Set(), tableCrafted: false, smelted: 0, diamondsMined: 0, bucket: 0, filled: false, obsidianMade: 0, obsidianMined: 0, caves: [], won: false };
     this.shapeWorld();
     this.hot();
-    say('<b>Survival</b>: hold click on a tree to get logs, then press <b>C</b> to craft.', 15000);
+    say('<b>Survival</b>: hold click on a tree to get logs, then press <b>E</b> for your inventory.', 15000);
+    say('Turn logs into planks and craft a <b>crafting table</b>. Place it and right-click it to make tools.', 15000);
     say('Smelt iron in a <b>furnace</b>, craft a <b>diamond pickaxe</b>, then turn cave <b>lava</b> into <b>obsidian</b> with a water bucket.', 15000);
     say('Lava caves are deep underground. Watch your depth on the scoreboard and dig down!', 15000);
   },
@@ -884,14 +933,23 @@ const Survival = {
       G.caves.push(c);
     }
   },
-  add(id, n) { if (!G.order.includes(id)) G.order.push(id); G.inv[id] = (G.inv[id] || 0) + n; this.hot(); },
+  // new things go into the first empty hotbar slot; the inventory (E) lets you rearrange
+  add(id, n) {
+    G.inv[id] = (G.inv[id] || 0) + n;
+    if (!G.hot.includes(id)) { const i = G.hot.indexOf(null); if (i >= 0) G.hot[i] = id; }
+    this.hot();
+  },
+  giveBucket() { if (!G.hot.includes('bucket')) { const i = G.hot.indexOf(null); if (i >= 0) G.hot[i] = 'bucket'; } },
+  toSlot(k) {
+    const j = selected, prev = G.hot.indexOf(k);
+    if (prev >= 0) G.hot[prev] = G.hot[j];
+    G.hot[j] = k; this.hot();
+  },
   hot() {
-    G.order = G.order.filter((id) => G.inv[id] > 0);
-    const s = G.order.slice(0, 7).map((id) => ({ block: id, count: G.inv[id], tip: sName(id) + (id === FURNACE ? ' (place it, then right-click)' : '') }));
-    while (s.length < 7) s.push({});
-    s.push(G.bucket ? { icon: G.bucket === 2 ? 'bucketw' : 'bucket', tip: G.bucket === 2 ? 'Water bucket: right-click lava' : 'Bucket: right-click water to fill' } : {});
-    s.push({ icon: 'pick', tip: 'Crafting (C)', act: () => openCraft() });
-    setHotbar(s);
+    G.hot = G.hot.map((k) => k === 'bucket' ? (G.bucket ? k : null) : (k != null && (G.inv[k] || 0) > 0 ? k : null));
+    setHotbar(G.hot.map((k) => k == null ? {}
+      : k === 'bucket' ? { icon: G.bucket === 2 ? 'bucketw' : 'bucket', tip: G.bucket === 2 ? 'Water bucket: right-click lava' : 'Bucket: right-click water to fill' }
+      : { block: k, count: G.inv[k], tip: sName(k) + (k === FURNACE || k === TABLE ? ' (place it, then right-click)' : '') }));
   },
   primary(dt, held) {
     $('minebar').hidden = true;
@@ -906,6 +964,9 @@ const Survival = {
     $('minebar').hidden = false; $('minebar').firstChild.style.width = Math.min(100, G.mine.t / G.mine.need * 100) + '%';
     if (G.mine.t < G.mine.need) return;
     setBlock(h.x, h.y, h.z, 0); G.mine = null; $('minebar').hidden = true;
+    const pk = posKey(h.x, h.y, h.z);
+    if (G.tables.delete(pk)) { this.add(TABLE, 1); say('Picked up your crafting table.', 3000); return; }
+    G.furnaceAt.delete(pk);
     const d = DROP[h.id] ?? h.id;
     if (typeof d === 'string') {
       G.items[d]++; if (d === 'diamond') G.diamondsMined++;
@@ -913,16 +974,39 @@ const Survival = {
     } else {
       this.add(d, 1);
       if (h.id === OBSIDIAN) { G.obsidianMined++; say('+1 <b>Obsidian</b>! Only a diamond pickaxe can do that.', 5000); }
-      if (h.id === FURNACE) G.furnaces = Math.max(0, G.furnaces - 1);
     }
   },
   secondary() {
     const h = aim(5);
     if (h && h.id === FURNACE) return openFurnace();
-    if (selected === 7) return this.useBucket();
-    const id = G.order[selected];
-    if (selected > 6 || !id || !G.inv[id]) return warn('Pick a block slot (1–7) to place it.');
-    if (tryPlace(id)) { G.inv[id]--; if (id === FURNACE) { G.furnaces++; say('Furnace placed! Right-click it to smelt.', 5000); } this.hot(); }
+    if (h && G.tables.has(posKey(h.x, h.y, h.z))) return openTable();
+    const k = G.hot[selected];
+    if (k === 'bucket') return this.useBucket();
+    if (k == null || !G.inv[k]) return warn('That hotbar slot is empty. Press <b>E</b> to open your inventory.');
+    const p = tryPlace(k === TABLE ? 7 : k);
+    if (!p) return;
+    G.inv[k]--;
+    const pk = posKey(p.x, p.y, p.z);
+    if (k === TABLE) { G.tables.add(pk); say('Crafting table placed! <b>Right-click</b> it to craft tools.', 6000); }
+    if (k === FURNACE) { G.furnaceAt.add(pk); say('Furnace placed! Right-click it to smelt.', 5000); }
+    this.hot();
+  },
+  // little details so the table and furnace look like what they are
+  draw(V, I) {
+    for (const k of G.tables) {
+      const [x, y, z] = k.split(',').map(Number), o = [x + 0.5, y, z + 0.5];
+      pushBox(V, I, o, [0, 1.005, 0], [0.5, 0.012, 0.5], [0.5, 0.31, 0.15]);
+      pushBox(V, I, o, [0, 1.02, 0], [0.42, 0.006, 0.03], [0.32, 0.19, 0.09]);
+      pushBox(V, I, o, [0, 1.02, 0], [0.03, 0.006, 0.42], [0.32, 0.19, 0.09]);
+      for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) pushBox(V, I, o, [sx * 0.505, 0.62, sz * 0.505], [sz ? 0.28 : 0.006, 0.16, sx ? 0.28 : 0.006], [0.45, 0.47, 0.5]);
+    }
+    for (const k of G.furnaceAt) {
+      const [x, y, z] = k.split(',').map(Number), o = [x + 0.5, y, z + 0.5];
+      for (const [sx, sz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        pushBox(V, I, o, [sx * 0.505, 0.38, sz * 0.505], [sz ? 0.26 : 0.006, 0.17, sx ? 0.26 : 0.006], [0.08, 0.07, 0.07]);
+        pushBox(V, I, o, [sx * 0.507, 0.28, sz * 0.507], [sz ? 0.18 : 0.006, 0.05, sx ? 0.18 : 0.006], [1, 0.55, 0.15], 0, 3);
+      }
+    }
   },
   useBucket() {
     if (!G.bucket) return warn('Craft a bucket first (3 iron ingots).');
@@ -1419,8 +1503,9 @@ let joy = { x: 0, y: 0 }, touchJump = false, touchSprint = false, touchUse = fal
 addEventListener('keydown', (e) => {
   if (!playing) return;
   keys[e.code] = true;
-  if (e.code === 'KeyE' && $('result').hidden && $('craft').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
-  if (e.code === 'KeyC' && scene === 'survival' && $('menu').hidden && $('result').hidden) { $('craft').hidden ? openCraft() : (closeCraft(), lockMouse()); }
+  const invKey = scene === 'survival' && (e.code === 'KeyE' || e.code === 'KeyC');
+  if (invKey && $('menu').hidden && $('result').hidden && (!G || !G.over || !$('craft').hidden)) { $('craft').hidden ? openInv() : (closeCraft(), lockMouse()); }
+  else if ((e.code === 'KeyE' || e.code === 'KeyP') && $('result').hidden && $('craft').hidden && $('vote').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
   if (scene === 'build' && G && !G.over && !anyDialog()) {
     if (e.code === 'KeyR') Build.page();
     if (e.code === 'KeyG') Build.brush();
@@ -1520,7 +1605,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -1603,7 +1688,7 @@ function frame(now) {
     drawGeo(dogGeo, dg.V, dg.I, gl.TRIANGLES);
   }
   // bots + snowballs
-  if (scene === 'wars' && G) { const V = [], I = []; Wars.draw(V, I); if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES); }
+  if ((scene === 'wars' || scene === 'survival') && G) { const V = [], I = []; GAMES[scene].draw(V, I); if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES); }
   // targeted block outline
   if (!lobby && G && !G.over && GAMES[scene].outline && playing && !blocked) {
     const h = scene === 'build' ? Build.target() : aim(5);
