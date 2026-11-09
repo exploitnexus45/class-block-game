@@ -242,50 +242,60 @@ const idxData = new Uint32Array(mem, E.index_ptr(), nIdx);
 
 // ---------- WebGL ----------
 const canvas = $('gl');
-const gl = canvas.getContext('webgl2', { antialias: true });
-if (!gl) throw new Error('This lobby needs WebGL 2, which this browser does not support.');
+// WebGL 2 when the browser has it, otherwise WebGL 1 (school Chromebooks, older GPUs, acceleration off).
+const forceGL1 = location.hash.includes('webgl1');
+let gl = forceGL1 ? null : canvas.getContext('webgl2', { antialias: true });
+const GL2 = !!gl;
+if (!gl) {
+  gl = canvas.getContext('webgl', { antialias: true }) || canvas.getContext('experimental-webgl', { antialias: true });
+  if (!gl) throw new Error('NOGL');
+  const vaoExt = gl.getExtension('OES_vertex_array_object');
+  if (!vaoExt || !gl.getExtension('OES_element_index_uint')) throw new Error('NOGL');
+  gl.createVertexArray = () => vaoExt.createVertexArrayOES();
+  gl.bindVertexArray = (v) => vaoExt.bindVertexArrayOES(v);
+}
+const VHEAD = GL2 ? '#version 300 es\n#define IN in\n#define OUT out\n' : '#define IN attribute\n#define OUT varying\n';
+const FHEAD = GL2 ? '#version 300 es\nprecision highp float;\n#define IN in\nout vec4 fragOut;\n#define FRAG fragOut\n'
+  : '#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n#define IN varying\n#define FRAG gl_FragColor\n';
 
-const VS = `#version 300 es
-in vec3 aPos; in vec3 aCol; in vec3 aAux;
+const VS = VHEAD + `
+IN vec3 aPos; IN vec3 aCol; IN vec3 aAux;
 uniform mat4 uVP; uniform vec3 uEye;
-out vec3 vPos; out vec3 vCol; out vec3 vAux; out float vDist;
+OUT vec3 vPos; OUT vec3 vCol; OUT vec3 vAux; OUT float vDist;
 void main(){ vPos=aPos; vCol=aCol; vAux=aAux; vDist=length(aPos-uEye); gl_Position=uVP*vec4(aPos,1.0); }`;
-const FS = `#version 300 es
-precision highp float;
-in vec3 vPos; in vec3 vCol; in vec3 vAux; in float vDist;
+const FS = FHEAD + `
+IN vec3 vPos; IN vec3 vCol; IN vec3 vAux; IN float vDist;
 uniform float uTime; uniform vec3 uFog;
-out vec4 o;
 float h3(vec3 p){ p=fract(p*0.3183099+0.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+bool is(float m, float k){ return abs(m-k)<0.5; }
 void main(){
-  int d=int(vAux.x+0.5); int m=int(vAux.y+0.5); float lt=vAux.z;
+  float d=floor(vAux.x+0.5); float m=floor(vAux.y+0.5); float lt=vAux.z;
   vec2 uv; float ax;
-  if(d<2){uv=vPos.zy; ax=vPos.x;} else if(d<4){uv=vPos.xz; ax=vPos.y;} else {uv=vPos.xy; ax=vPos.z;}
-  float axl=floor(ax+((d%2==0)?-0.5:0.5));
+  if(d<1.5){uv=vPos.zy; ax=vPos.x;} else if(d<3.5){uv=vPos.xz; ax=vPos.y;} else {uv=vPos.xy; ax=vPos.z;}
+  float axl=floor(ax+((mod(d,2.0)<0.5)?-0.5:0.5));
   vec2 q=floor(uv*16.0);
-  float n=h3(vec3(q,axl*7.0+float(d)));
+  float n=h3(vec3(q,axl*7.0+d));
   vec2 fq=(mod(q,16.0)+0.5)/16.0;
   vec3 c=vCol; float a=1.0;
-  if(m==0){ c*=0.88+0.22*n; }
-  else if(m==4){ float edge=0.76+0.14*h3(vec3(q.x,3.0,axl)); if(fq.y>edge) c=vec3(0.36,0.62,0.24); c*=0.88+0.22*n; }
-  else if(m==5){ c*=0.72+0.5*n; if(n<0.14) c*=0.5; }
-  else if(m==6){ float row=floor(fq.y*4.0); c*=0.9+0.12*n; if(fract(fq.y*4.0)<0.14) c*=0.7; if(fract(fq.x+mod(row,2.0)*0.5)<0.07) c*=0.8; }
-  else if(m==7){ c*=0.78+0.3*h3(vec3(q.x,floor(q.y/5.0),axl)); }
-  else if(m==8){ float r=floor(fq.y*2.0); bool mortar=fract(fq.y*2.0)<0.1||fract(fq.x*2.0+mod(r,2.0)*0.5)<0.07; c*=mortar?0.68:(0.92+0.12*n); }
-  else if(m==9){ c*=0.68+0.45*h3(vec3(floor(q/3.0),axl)); if(n<0.15) c*=0.78; }
-  else if(m==3){ c*=0.9+0.2*n; lt=1.3; }
-  else if(m==1){ float w=sin(uv.x*3.0+uTime*2.0)*sin(uv.y*2.6-uTime*1.7); c*=0.9+0.14*w+0.08*n; a=0.72; }
-  else if(m==2){ vec2 g=floor(uv*16.0)/16.0; float s=sin(g.x*9.0+uTime*3.0)+sin(g.y*11.0-uTime*2.4)+sin((g.x+g.y)*7.0+uTime*1.9); c=c*(0.7+0.17*s)+0.12*n; lt=1.0; a=0.8; }
+  if(is(m,0.0)){ c*=0.88+0.22*n; }
+  else if(is(m,4.0)){ float edge=0.76+0.14*h3(vec3(q.x,3.0,axl)); if(fq.y>edge) c=vec3(0.36,0.62,0.24); c*=0.88+0.22*n; }
+  else if(is(m,5.0)){ c*=0.72+0.5*n; if(n<0.14) c*=0.5; }
+  else if(is(m,6.0)){ float row=floor(fq.y*4.0); c*=0.9+0.12*n; if(fract(fq.y*4.0)<0.14) c*=0.7; if(fract(fq.x+mod(row,2.0)*0.5)<0.07) c*=0.8; }
+  else if(is(m,7.0)){ c*=0.78+0.3*h3(vec3(q.x,floor(q.y/5.0),axl)); }
+  else if(is(m,8.0)){ float r=floor(fq.y*2.0); bool mortar=fract(fq.y*2.0)<0.1||fract(fq.x*2.0+mod(r,2.0)*0.5)<0.07; c*=mortar?0.68:(0.92+0.12*n); }
+  else if(is(m,9.0)){ c*=0.68+0.45*h3(vec3(floor(q/3.0),axl)); if(n<0.15) c*=0.78; }
+  else if(is(m,3.0)){ c*=0.9+0.2*n; lt=1.3; }
+  else if(is(m,1.0)){ float w=sin(uv.x*3.0+uTime*2.0)*sin(uv.y*2.6-uTime*1.7); c*=0.9+0.14*w+0.08*n; a=0.72; }
+  else if(is(m,2.0)){ vec2 g=floor(uv*16.0)/16.0; float s=sin(g.x*9.0+uTime*3.0)+sin(g.y*11.0-uTime*2.4)+sin((g.x+g.y)*7.0+uTime*1.9); c=c*(0.7+0.17*s)+0.12*n; lt=1.0; a=0.8; }
   vec3 col=c*lt;
   col=mix(col,uFog,smoothstep(30.0,78.0,vDist));
-  o=vec4(col,a);
+  FRAG=vec4(col,a);
 }`;
-const SKY_VS = `#version 300 es
-const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
-out vec2 vN; void main(){ vN=P[gl_VertexID]; gl_Position=vec4(P[gl_VertexID],0.999,1.0); }`;
-const SKY_FS = `#version 300 es
-precision highp float;
-in vec2 vN; uniform vec3 uR,uU,uF,uEye; uniform float uTan,uAsp,uTime; uniform vec3 uFog;
-out vec4 o;
+const SKY_VS = VHEAD + `
+IN vec2 aPos;
+OUT vec2 vN; void main(){ vN=aPos; gl_Position=vec4(aPos,0.999,1.0); }`;
+const SKY_FS = FHEAD + `
+IN vec2 vN; uniform vec3 uR,uU,uF,uEye; uniform float uTan,uAsp,uTime; uniform vec3 uFog;
 float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 void main(){
   vec3 d=normalize(uF+vN.x*uAsp*uTan*uR+vN.y*uTan*uU);
@@ -295,9 +305,10 @@ void main(){
   if(dot(d,sd)>0.0){ float a=abs(dot(d,sx)), b=abs(dot(d,sy)); float m=max(a,b);
     if(m<0.06) c=vec3(1.0,0.97,0.82); else if(m<0.09) c=mix(c,vec3(1.0,0.95,0.75),0.35); }
   if(d.y>0.02){ float t=(70.0-uEye.y)/d.y; vec2 p=uEye.xz+d.xz*t+vec2(uTime*1.2,0.0);
+    p=mod(p,12000.0);
     vec2 cell=floor(p/12.0); float k=h2(cell);
     if(k>0.78){ float fade=clamp(1.0-t/600.0,0.0,1.0); c=mix(c,vec3(1.0),0.85*fade); } }
-  o=vec4(c,1.0);
+  FRAG=vec4(c,1.0);
 }`;
 
 function compile(vs, fs) {
@@ -317,6 +328,11 @@ function compile(vs, fs) {
 const prog = compile(VS, FS);
 const sky = compile(SKY_VS, SKY_FS);
 const skyVao = gl.createVertexArray();
+gl.bindVertexArray(skyVao);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+gl.bindVertexArray(null);
 
 function makeVao(dynamic) {
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
@@ -1171,7 +1187,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash === '#debug') window.cbg = { skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -1301,7 +1317,11 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 
-} catch (e) { showErr('The lobby failed to start: ' + e.message); console.error(e); }
+} catch (e) {
+  if (e.message === 'NOGL') showErr('Your browser has 3D graphics (WebGL) turned off, so the lobby cannot draw. In Chrome: open Settings → System, turn on "Use graphics acceleration when available", then restart Chrome. On a school computer, ask your teacher, because it may be blocked.');
+  else showErr('The lobby failed to start: ' + e.message);
+  console.error(e);
+}
 })();
 </script>
 
