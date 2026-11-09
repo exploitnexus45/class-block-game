@@ -102,13 +102,17 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   .slot .ic { inset: 8px; }
   #chat { font-size: 18px; width: calc(100vw - 200px); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
 }
-#result, #craft { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+#result, #craft, #vote { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
 #menu h2.h2b { margin: 18px 0 10px; }
 #result h2, #craft h2 { margin: 0 0 12px; font: 700 20px var(--display); color: var(--gold); text-wrap: balance; }
 #resB { font-size: 22px; }
 #resB p { margin: 0 0 10px; color: var(--ink-dim); }
 #resB .line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 2px solid rgba(255,255,255,.07); }
 #resB .line span:last-child { color: var(--gold); text-align: right; }
+#resKeep { margin-top: 16px; }
+#resKeep + .row2 { margin-top: 8px; }
+.fnote { margin: 0 0 4px; font-size: 20px; color: var(--ink-dim); }
+#board .row.next span:first-child { color: var(--gold); }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .btn.alt { background: #4a4458; }
 .btn.alt:hover { background: #575069; }
@@ -180,13 +184,22 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   <div class="card" role="dialog" aria-labelledby="resT">
     <h2 id="resT"></h2>
     <div id="resB"></div>
+    <button class="btn" id="resKeep" hidden>KEEP PLAYING</button>
     <div class="row2"><button class="btn" id="resAgain">PLAY AGAIN</button><button class="btn alt" id="resLobby">LOBBY</button></div>
+  </div>
+</div>
+
+<div id="vote" hidden>
+  <div class="card" role="dialog" aria-labelledby="voteT">
+    <h2 id="voteT">VOTE FOR A THEME</h2>
+    <p class="fnote" id="voteN"></p>
+    <div class="games" id="voteList"></div>
   </div>
 </div>
 
 <div id="craft" hidden>
   <div class="card" role="dialog" aria-label="Crafting">
-    <h2>CRAFTING</h2>
+    <h2 id="craftT">CRAFTING</h2>
     <div class="games" id="recipes"></div>
     <button class="btn close" id="craftClose">DONE (C)</button>
   </div>
@@ -559,7 +572,7 @@ function raceStep(dt) {
 // ---------- HUD ----------
 const PORTALS = [
   { name: 'Survival', key: 'survival', mode: 1, note: 'mine · craft · find a diamond', color: 'var(--p0)', pos: [53.5, 22.6, 32.5] },
-  { name: 'Build Battle', key: 'build', mode: 2, note: '3 minutes · one theme', color: 'var(--p1)', pos: [11.5, 22.6, 32.5] },
+  { name: 'Build Battle', key: 'build', mode: 2, note: '5 minutes · one theme', color: 'var(--p1)', pos: [11.5, 22.6, 32.5] },
   { name: 'Parkour', key: 'parkour', mode: 3, note: 'race to the gold pad', color: 'var(--p2)', pos: [32.5, 22.6, 53.5] },
   { name: 'Block Wars', key: 'wars', mode: 4, note: 'survive 3 waves', color: 'var(--p3)', pos: [32.5, 22.6, 11.5] },
 ];
@@ -589,9 +602,11 @@ function iconSVG(kind) {
     saddle: ['............','..bb......bb','..bBb....bBb','..bBBbbbbBBb','..bBBBBBBBBb','...bBBBBBBb.','....bbbbbb..','.....s..s...','.....s..s...','....gg..gg..','............','............'],
     bed: ['............','............','ww..........','wwrrrrrrrrrr','wwrrrrrrrrrr','bbbbbbbbbbbb','b..........b','b..........b','............','............','............','............'],
     pick: ['............','..cccccccc..','.cC..BB..Cc.','.C...BB...C.','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....bb.....','............'],
+    bucket: ['............','............','.cccccccccc.','.cCCCCCCCCc.','..cCCCCCCc..','..cCCCCCCc..','..cCCCCCCc..','...cCCCCc...','...cccccc...','............','............','............'],
+    bucketw: ['............','............','.cccccccccc.','.cuuuuuuuuc.','..cuuUuuuc..','..cuuuuUuc..','..cuuuuuuc..','...cuuuuc...','...cccccc...','............','............','............'],
     snow: ['............','....wwww....','...wwwwww...','..wwwwwwYw..','..wwwwwwYw..','..wwwwwYYw..','..wwwwYYYw..','...wYYYYw...','....wwww....','............','............','............'],
   }[kind];
-  const pal = { '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#bdb7a6', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a', c: '#b8c0c8', C: '#6c747c' };
+  const pal = { u: '#3a78e0', U: '#8fc0ff', '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#bdb7a6', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a', c: '#b8c0c8', C: '#6c747c' };
   let r = '';
   px.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`; }));
   return `<svg class="ic" viewBox="0 0 12 12" shape-rendering="crispEdges">${r}</svg>`;
@@ -640,7 +655,7 @@ const LOBBY_BOARD = $('board').innerHTML;
 let lastBoard = '';
 function setBoard(html) { if (html !== lastBoard) { $('board').innerHTML = html; lastBoard = html; } }
 const row = (a, b, cls = '') => `<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`;
-const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('start').hidden;
+const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('vote').hidden || !$('start').hidden;
 function releaseMouse() { try { document.exitPointerLock(); } catch (e) {} }
 function lockMouse() { if (coarse) return; try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 
@@ -664,12 +679,14 @@ $('menuClose').addEventListener('click', () => { closeMenu(); lockMouse(); });
 $('menuFinish').addEventListener('click', () => { closeMenu(); if (scene === 'build' && G && !G.over) Build.finish(); });
 $('menuRestart').addEventListener('click', () => { closeMenu(); loadGame(gameIdx); lockMouse(); });
 $('menuLobby').addEventListener('click', () => { closeMenu(); toLobby(); lockMouse(); });
-function showResult(title, color, sub, lines) {
+function showResult(title, color, sub, lines, keep) {
   if (G) G.over = true;
+  $('resKeep').hidden = !keep;
   $('resT').textContent = title; $('resT').style.color = color;
   $('resB').innerHTML = (sub ? `<p>${sub}</p>` : '') + lines.map(([a, b]) => `<div class="line"><span>${a}</span><span>${b}</span></div>`).join('');
   $('result').hidden = false; $('toast').hidden = true; releaseMouse();
 }
+$('resKeep').addEventListener('click', () => { $('result').hidden = true; if (G) G.over = false; lockMouse(); });
 $('resAgain').addEventListener('click', () => { $('result').hidden = true; loadGame(gameIdx); lockMouse(); });
 $('resLobby').addEventListener('click', () => { $('result').hidden = true; toLobby(); lockMouse(); });
 
@@ -707,61 +724,172 @@ function tryPlace(id, allow) {
 }
 
 // ---------- SURVIVAL ----------
-const TOOLS = ['Bare hands', 'Wooden pickaxe', 'Stone pickaxe', 'Iron pickaxe'];
-const TOOL_SPEED = [1, 2, 3, 4.2];
-const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [1.8, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [6, 3] };
-const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'iron', 19: 'gold', 20: 'diamond' };
-const ITEM = { coal: 'Coal', iron: 'Iron', gold: 'Gold', diamond: 'Diamond' };
+// Progression: wood → stone → furnace + smelt iron → iron pick → diamonds → diamond pick
+// → bucket → water → pour on cave lava → obsidian → mine it with the diamond pick.
+const TOOLS = ['Bare hands', 'Wooden pickaxe', 'Stone pickaxe', 'Iron pickaxe', 'Diamond pickaxe'];
+const TOOL_SPEED = [1, 2, 3, 4.2, 6];
+const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [2, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [7, 4] };
+const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'rawIron', 19: 'rawGold', 20: 'diamond' };
+const ITEM = { coal: 'Coal', rawIron: 'Raw iron', rawGold: 'Raw gold', iron: 'Iron ingot', gold: 'Gold ingot', diamond: 'Diamond' };
+const LAVA = 15, WATER = 4, FURNACE = 8, OBSIDIAN = 11;
+const sName = (id) => id === FURNACE ? 'Furnace' : BLOCK[id][0];
 const RECIPES = [
   { name: '4 Planks', need: { 5: 1 }, block: 7, make: () => Survival.add(7, 4) },
   { name: 'Wooden pickaxe', need: { 7: 3 }, tool: 1 },
   { name: 'Stone pickaxe', need: { 9: 3, 7: 2 }, tool: 2 },
+  { name: 'Furnace', need: { 9: 8 }, block: FURNACE, make: () => Survival.add(FURNACE, 1) },
   { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3 },
+  { name: 'Bucket', need: { iron: 3 }, bucket: true, make: () => { G.bucket = 1; } },
+  { name: 'Diamond pickaxe', need: { diamond: 3, 7: 2 }, tool: 4 },
   { name: 'Gold block', need: { gold: 4 }, block: 10, make: () => Survival.add(10, 1) },
 ];
+const SMELT = [
+  { name: 'Iron ingot', from: 'rawIron', to: 'iron', col: '#d8d8d8' },
+  { name: 'Gold ingot', from: 'rawGold', to: 'gold', col: '#ffd933' },
+];
 const have = (k) => isNaN(k) ? G.items[k] : (G.inv[k] || 0);
-const canCraft = (r) => !(r.tool && G.tool >= r.tool) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
-const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : BLOCK[k][0]}`).join(' + ');
-function openCraft() { if (scene !== 'survival' || !G || G.over) return; renderCraft(); $('craft').hidden = false; releaseMouse(); }
+const recipeDone = (r) => (r.tool && G.tool >= r.tool) || (r.bucket && G.bucket);
+const canCraft = (r) => !recipeDone(r) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
+const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : sName(+k)}`).join(' + ');
+let craftMode = 'craft';
+function openCraft() { if (scene !== 'survival' || !G || G.over) return; craftMode = 'craft'; renderCraft(); $('craft').hidden = false; releaseMouse(); }
+function openFurnace() { if (scene !== 'survival' || !G || G.over) return; craftMode = 'furnace'; renderCraft(); $('craft').hidden = false; releaseMouse(); }
 function closeCraft() { $('craft').hidden = true; }
 $('craftClose').addEventListener('click', () => { closeCraft(); lockMouse(); });
 function renderCraft() {
   const el = $('recipes'); el.innerHTML = '';
+  if (craftMode === 'furnace') {
+    $('craftT').textContent = 'FURNACE';
+    const p = document.createElement('p'); p.className = 'fnote';
+    p.textContent = `Each smelt burns 1 coal. You have ${G.items.coal} coal.`;
+    el.appendChild(p);
+    SMELT.forEach((r) => {
+      const n = Math.min(G.items[r.from], G.items.coal);
+      const b = document.createElement('button'); b.className = 'game';
+      b.disabled = n < 1;
+      b.innerHTML = `<i style="background:${r.col}"></i><span>Smelt ${r.name}</span><em>${G.items[r.from]} ${ITEM[r.from].toLowerCase()} · 1 coal each</em>`;
+      b.addEventListener('click', () => {
+        const k = Math.min(G.items[r.from], G.items.coal); if (k < 1) return;
+        G.items[r.from] -= k; G.items.coal -= k; G.items[r.to] += k;
+        if (r.to === 'iron') G.smelted += k;
+        say(`The furnace glows… <b>+${k} ${r.name}${k > 1 ? 's' : ''}</b>`, 4000);
+        renderCraft();
+      });
+      el.appendChild(b);
+    });
+    return;
+  }
+  $('craftT').textContent = 'CRAFTING';
   RECIPES.forEach((r) => {
     const b = document.createElement('button'); b.className = 'game';
-    const done = r.tool && G.tool >= r.tool;
     b.disabled = !canCraft(r);
-    b.innerHTML = `<i style="background:${r.tool ? '#b8c0c8' : blockCol(r.block)}"></i><span>${r.name}</span><em>${done ? 'crafted ✓' : needText(r)}</em>`;
+    const col = r.tool ? (r.tool === 4 ? '#59f2f2' : '#b8c0c8') : r.bucket ? '#b8c0c8' : blockCol(r.block);
+    b.innerHTML = `<i style="background:${col}"></i><span>${r.name}</span><em>${recipeDone(r) ? 'crafted ✓' : needText(r)}</em>`;
     b.addEventListener('click', () => {
       if (!canCraft(r)) return;
       for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
       if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); } else r.make();
+      if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
+      if (r.bucket) say('Bucket crafted! It is in slot <b>8</b>. Right-click water to fill it.', 7000);
       Survival.hot(); renderCraft();
     });
     el.appendChild(b);
   });
 }
+// any block along the view ray, including water and lava (the engine's ray skips those)
+function rayAny(reach) {
+  let prev = null;
+  for (let t = 0; t <= reach; t += 0.04) {
+    const x = Math.floor(curEye[0] + curDir[0] * t), y = Math.floor(curEye[1] + curDir[1] * t), z = Math.floor(curEye[2] + curDir[2] * t);
+    if (prev && prev[0] === x && prev[1] === y && prev[2] === z) continue;
+    const id = E.get_block(x, y, z);
+    if (id) return { id, x, y, z, prev };
+    prev = [x, y, z];
+  }
+  return null;
+}
 const GOALS = [
   ['Craft a wooden pickaxe', () => G.tool >= 1],
   ['Craft a stone pickaxe', () => G.tool >= 2],
-  ['Mine 3 iron', () => G.ironMined >= 3],
+  ['Build and place a furnace', () => G.furnaces >= 1],
+  ['Smelt 3 iron ingots', () => G.smelted >= 3],
   ['Craft an iron pickaxe', () => G.tool >= 3],
-  ['Mine a diamond', () => G.items.diamond >= 1],
+  ['Mine 3 diamonds', () => G.diamondsMined >= 3],
+  ['Craft a diamond pickaxe', () => G.tool >= 4],
+  ['Craft a bucket', () => G.bucket > 0],
+  ['Fill the bucket with water', () => G.filled],
+  ['Pour water on lava', () => G.obsidianMade >= 1],
+  ['Mine the obsidian', () => G.obsidianMined >= 1],
 ];
+function seeded(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
 const Survival = {
   title: 'SURVIVAL', yaw: 0, outline: true, use: 'MINE',
   init() {
-    G = { t: 0, inv: {}, order: [], items: { coal: 0, iron: 0, gold: 0, diamond: 0 }, ironMined: 0, tool: 0, mine: null, done: GOALS.map(() => false) };
+    G = { t: 0, inv: {}, order: [], items: { coal: 0, rawIron: 0, rawGold: 0, iron: 0, gold: 0, diamond: 0 }, tool: 0, mine: null,
+      done: GOALS.map(() => false), furnaces: 0, smelted: 0, diamondsMined: 0, bucket: 0, filled: false, obsidianMade: 0, obsidianMined: 0, caves: [], won: false };
+    this.shapeWorld();
     this.hot();
     say('<b>Survival</b>: hold click on a tree to get logs, then press <b>C</b> to craft.', 15000);
-    say('Craft better pickaxes, dig deep, and mine a <b>diamond</b> to win!', 15000);
-    say('<b>Right-click</b> places the block in your hand.', 15000);
+    say('Smelt iron in a <b>furnace</b>, craft a <b>diamond pickaxe</b>, then turn cave <b>lava</b> into <b>obsidian</b> with a water bucket.', 15000);
+    say('Lava caves are deep underground. Watch your depth on the scoreboard and dig down!', 15000);
+  },
+  // a pond near spawn and a few lava caves deep inside the island
+  shapeWorld() {
+    const rnd = seeded(20261109);
+    const top = (x, z) => E.ground_at(x + 0.5, 30, z + 0.5) - 1;
+    const POND = [];
+    for (let dx = 0; dx < 4; dx++) for (let dz = 0; dz < 4; dz++) if (!((dx === 0 || dx === 3) && (dz === 0 || dz === 3))) POND.push([dx, dz]);
+    pond: for (let r = 4; r <= 12; r++) for (let a = 0; a < 16; a++) {
+      const ox = Math.round(32 + Math.cos(a * Math.PI / 8) * r) - 1, oz = Math.round(32 + Math.sin(a * Math.PI / 8) * r) - 1;
+      const cells = POND.map(([dx, dz]) => [ox + dx, oz + dz]);
+      const ys = cells.map(([x, z]) => top(x, z));
+      if (ys.some((y) => y < 10 || y > 30) || Math.max(...ys) - Math.min(...ys) > 1) continue;
+      if (cells.some(([x, z], i) => E.get_block(x, ys[i], z) !== 1 || E.get_block(x, ys[i] + 1, z))) continue;
+      const wy = Math.min(...ys);
+      for (const [x, z] of cells) { for (let y = wy + 1; y <= wy + 2; y++) setBlock(x, y, z, 0); setBlock(x, wy, z, WATER); setBlock(x, wy - 1, z, WATER); setBlock(x, wy - 2, z, 12); }
+      for (let dx = -1; dx <= 4; dx++) for (let dz = -1; dz <= 4; dz++) {
+        const x = ox + dx, z = oz + dz; if (E.get_block(x, wy, z) === WATER) continue;
+        const t = top(x, z); if (E.get_block(x, t, z) === 1) setBlock(x, t, z, 12);
+      }
+      G.pond = [ox + 1.5, wy, oz + 1.5];
+      break pond;
+    }
+    const cands = [];
+    for (let cx = 8; cx <= 56; cx += 2) for (let cz = 8; cz <= 56; cz += 2) for (let cy = 6; cy <= 11; cy++) {
+      let ok = true;
+      for (let x = -5; x <= 5 && ok; x++) for (let y = -4; y <= 4 && ok; y++) for (let z = -5; z <= 5 && ok; z++) {
+        if (x * x / 25 + y * y / 16 + z * z / 25 > 1) continue;
+        if (!E.get_block(cx + x, cy + y, cz + z)) ok = false;
+      }
+      if (ok) cands.push([cx, cy, cz]);
+    }
+    for (let i = cands.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [cands[i], cands[j]] = [cands[j], cands[i]]; }
+    for (const c of cands) {
+      if (G.caves.length >= 4) break;
+      if (G.caves.some((o) => Math.hypot(o[0] - c[0], o[2] - c[2]) < 13)) continue;
+      const [cx, cy, cz] = c;
+      for (let x = -4; x <= 4; x++) for (let y = -3; y <= 3; y++) for (let z = -4; z <= 4; z++) {
+        const d = x * x / 12 + y * y / 6 + z * z / 12;
+        if (d <= 1) setBlock(cx + x, cy + y, cz + z, 0);
+      }
+      // lava pool on the cave floor, stone underneath so it never drips out
+      for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) {
+        if (x * x + z * z > 5) continue;
+        const y = cy - 2;
+        setBlock(cx + x, y, cz + z, LAVA);
+        if (!E.get_block(cx + x, y - 1, cz + z)) setBlock(cx + x, y - 1, cz + z, 3);
+      }
+      // a couple of diamonds in the walls as a reward
+      for (const [x, y, z] of [[4, 0, 0], [-4, 1, 0], [0, 0, 4]]) if (rnd() < 0.7) setBlock(cx + x, cy + y, cz + z, 20);
+      G.caves.push(c);
+    }
   },
   add(id, n) { if (!G.order.includes(id)) G.order.push(id); G.inv[id] = (G.inv[id] || 0) + n; this.hot(); },
   hot() {
     G.order = G.order.filter((id) => G.inv[id] > 0);
-    const s = G.order.slice(0, 8).map((id) => ({ block: id, count: G.inv[id], tip: BLOCK[id][0] }));
-    while (s.length < 8) s.push({});
+    const s = G.order.slice(0, 7).map((id) => ({ block: id, count: G.inv[id], tip: sName(id) + (id === FURNACE ? ' (place it, then right-click)' : '') }));
+    while (s.length < 7) s.push({});
+    s.push(G.bucket ? { icon: G.bucket === 2 ? 'bucketw' : 'bucket', tip: G.bucket === 2 ? 'Water bucket: right-click lava' : 'Bucket: right-click water to fill' } : {});
     s.push({ icon: 'pick', tip: 'Crafting (C)', act: () => openCraft() });
     setHotbar(s);
   },
@@ -779,85 +907,284 @@ const Survival = {
     if (G.mine.t < G.mine.need) return;
     setBlock(h.x, h.y, h.z, 0); G.mine = null; $('minebar').hidden = true;
     const d = DROP[h.id] ?? h.id;
-    if (typeof d === 'string') { G.items[d]++; if (d === 'iron') G.ironMined++; say(`+1 <b>${ITEM[d]}</b>`, 3500); }
-    else this.add(d, 1);
+    if (typeof d === 'string') {
+      G.items[d]++; if (d === 'diamond') G.diamondsMined++;
+      say(`+1 <b>${ITEM[d]}</b>${d === 'rawIron' || d === 'rawGold' ? ' (smelt it in a furnace)' : ''}`, 3500);
+    } else {
+      this.add(d, 1);
+      if (h.id === OBSIDIAN) { G.obsidianMined++; say('+1 <b>Obsidian</b>! Only a diamond pickaxe can do that.', 5000); }
+      if (h.id === FURNACE) G.furnaces = Math.max(0, G.furnaces - 1);
+    }
   },
   secondary() {
+    const h = aim(5);
+    if (h && h.id === FURNACE) return openFurnace();
+    if (selected === 7) return this.useBucket();
     const id = G.order[selected];
-    if (selected > 7 || !id || !G.inv[id]) return warn('Pick a block slot (1–8) to place it.');
-    if (tryPlace(id)) { G.inv[id]--; this.hot(); }
+    if (selected > 6 || !id || !G.inv[id]) return warn('Pick a block slot (1–7) to place it.');
+    if (tryPlace(id)) { G.inv[id]--; if (id === FURNACE) { G.furnaces++; say('Furnace placed! Right-click it to smelt.', 5000); } this.hot(); }
   },
-  update(dt) {
+  useBucket() {
+    if (!G.bucket) return warn('Craft a bucket first (3 iron ingots).');
+    const h = rayAny(5);
+    if (G.bucket === 1) {
+      if (h && h.id === WATER) { G.bucket = 2; G.filled = true; say('Filled your bucket with <b>water</b>!', 4000); this.hot(); }
+      else warn('Aim at water to fill your bucket. There is a pond near spawn.');
+      return;
+    }
+    if (h && h.id === LAVA) { this.cool(h.x, h.y, h.z); G.bucket = 1; this.hot(); return; }
+    if (h && h.id !== WATER && h.prev) {
+      const [x, y, z] = h.prev;
+      if (!E.get_block(x, y, z) && !E.player_overlaps(x, y, z)) {
+        setBlock(x, y, z, WATER); G.bucket = 1;
+        // water touching lava cools it, like in the real game
+        for (const [dx, dy, dz] of [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]]) if (E.get_block(x + dx, y + dy, z + dz) === LAVA) this.cool(x + dx, y + dy, z + dz);
+        this.hot(); return;
+      }
+    }
+    warn('Aim at lava to turn it into obsidian.');
+  },
+  cool(x, y, z) {
+    setBlock(x, y, z, OBSIDIAN); G.obsidianMade++;
+    say('Sssss! The lava cooled into <b>obsidian</b>. Mine it with a diamond pickaxe.', 6000);
+  },
+  update(dt, ret) {
     G.t += dt;
+    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+    const inLava = [py + 0.1, py + 1].some((y) => E.get_block(Math.floor(px), Math.floor(y), Math.floor(pz)) === LAVA);
+    if (inLava) {
+      $('hurt').style.opacity = '1'; setTimeout(() => { $('hurt').style.opacity = '0'; }, 250);
+      E.respawn_player(); say('Ouch, <b>lava</b>! You woke up at spawn. Your items are safe.', 5000);
+    }
+    if (ret === -1) say('You fell off the island! Back to spawn.', 4000);
     GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) banner('GOAL COMPLETE', name, '#6fbf4a', 2400); } });
-    if (G.done[GOALS.length - 1]) {
+    if (G.done[GOALS.length - 1] && !G.won) {
+      G.won = true;
       const best = store.get('survivalBest'); const rec = best == null || G.t < best; if (rec) store.set('survivalBest', G.t);
-      showResult('YOU FOUND A DIAMOND!', '#59f2f2', 'You beat Survival.', [
+      showResult('SURVIVAL COMPLETE!', '#a35cff', 'You smelted iron, crafted a diamond pickaxe and mined obsidian.', [
         ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')], ['Best', fmtTime(rec ? G.t : best)],
-        ['Coal mined', G.items.coal], ['Iron mined', G.ironMined], ['Gold held', G.items.gold],
-      ]);
+        ['Diamonds mined', G.diamondsMined], ['Iron smelted', G.smelted], ['Obsidian made', G.obsidianMade],
+      ], true);
     }
   },
   board() {
-    return `<h2>SURVIVAL</h2>${row('Time', fmtTime(G.t))}${row('Tool', TOOLS[G.tool])}<hr>`
-      + GOALS.map(([n], i) => row((G.done[i] ? '✓ ' : '☐ ') + n, '', G.done[i] ? 'done' : '')).join('')
-      + `<hr>${row('Coal', G.items.coal)}${row('Iron', G.items.iron)}${row('Gold', G.items.gold)}${row('Diamond', G.items.diamond)}`;
+    const left = GOALS.map((g, i) => [g[0], i]).filter(([, i]) => !G.done[i]);
+    const doneN = GOALS.length - left.length;
+    const goals = left.length ? left.slice(0, 3).map(([n], j) => row((j === 0 ? '▸ ' : '☐ ') + n, '', j === 0 ? 'next' : '')).join('') : row('✓ All goals done!', '', 'done');
+    const bucket = G.bucket === 2 ? 'Water' : G.bucket === 1 ? 'Empty' : '—';
+    return `<h2>SURVIVAL</h2>${row('Time', fmtTime(G.t))}${row('Tool', TOOLS[G.tool])}${row('Depth (y)', Math.floor(E.player_y()))}<hr>`
+      + `${row('Goals', doneN + ' of ' + GOALS.length)}${goals}<hr>`
+      + `${row('Coal', G.items.coal)}${row('Raw iron', G.items.rawIron)}${row('Iron ingots', G.items.iron)}${row('Raw gold', G.items.rawGold)}${row('Gold ingots', G.items.gold)}${row('Diamonds', G.items.diamond)}${row('Bucket', bucket)}`;
   },
 };
 
 // ---------- BUILD BATTLE ----------
-const THEMES = ['Treehouse', 'Rocket ship', 'Castle', 'Giant cake', 'Dragon', 'Robot', 'Lighthouse', 'Pirate ship', 'Rainbow bridge', 'Snowman', 'Volcano', 'Dream house', 'Ice cream cone', 'Race car', 'Haunted house', 'Giant mushroom', 'Nugget statue', 'Hot air balloon'];
-const PAL = [[23, 24, 25, 26, 27, 28, 29, 30, 7], [1, 3, 8, 9, 5, 6, 12, 10, 11]];
-const inPlot = (x, y, z) => Math.hypot(x + 0.5 - 32, z + 0.5 - 32) <= 18.5 && y >= 17 && y <= 38;
+// Vote a theme → 5 minutes to build (fly, 3 palettes, 3x3 brush, undo, floor paint) → judges fly around your build → placement vs rivals.
+const THEMES = ['Treehouse', 'Rocket ship', 'Castle', 'Giant cake', 'Dragon', 'Robot', 'Lighthouse', 'Pirate ship', 'Rainbow bridge', 'Snowman', 'Volcano', 'Dream house', 'Ice cream cone', 'Race car', 'Haunted house', 'Giant mushroom', 'Nugget statue', 'Hot air balloon', 'Underwater city', 'Candy land', 'Space station', 'Jungle temple', 'Train', 'Fish tank', 'Giant shoe', 'Rainbow unicorn', 'Ninja dojo', 'Ferris wheel', 'Pizza', 'Wizard tower'];
+const PAL = [
+  { name: 'Wool colors', ids: [23, 24, 25, 26, 27, 28, 29, 30, 7] },
+  { name: 'Nature & stone', ids: [1, 2, 3, 8, 9, 5, 6, 12, 31] },
+  { name: 'Glow & magic', ids: [21, 22, 13, 14, 15, 16, 4, 20, 10] },
+];
+const FANCY = { 21: 'Glowing gold', 22: 'Glowing green', 13: 'Purple magic', 14: 'Teal magic', 15: 'Lava glow', 16: 'Pink magic', 4: 'Water', 20: 'Diamond ore', 10: 'Gold block', 11: 'Obsidian' };
+const bName = (id) => FANCY[id] || BLOCK[id][0];
+const SOLID = (id) => !(id === 4 || (id >= 13 && id <= 16));
+const GLOW = new Set([21, 22, 13, 14, 15, 16, 10, 20]);
+const VOTES = [[2, 'Super Poop', '#8a6a4a'], [4, 'Poop', '#a07850'], [5, 'OK', '#c9c3b0'], [7, 'Good', '#6fbf4a'], [9, 'Epic', '#a35cff'], [10, 'Legendary', '#ffd36b']];
+const voteOf = (n) => VOTES.find(([max]) => n <= max);
+const RIVALS = ['CraftQueen', 'BlockyBob', 'PixelPete'];
+const PLOT_R = 18.5;
+const inPlot = (x, y, z) => Math.hypot(x + 0.5 - 32, z + 0.5 - 32) <= PLOT_R && y >= 17 && y <= 38;
+const onFloor = (x, z) => Math.hypot(x + 0.5 - 32, z + 0.5 - 32) <= PLOT_R - 0.6;
+let voteTimer = null;
 const Build = {
-  title: 'BUILD BATTLE', yaw: 0, outline: true, use: 'BREAK',
+  title: 'BUILD BATTLE', yaw: 0, use: 'BREAK',
+  get outline() { return !!G && G.phase === 'build'; },
   init() {
     const base = new Set();
     for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) for (let y = 17; y <= 38; y++) if (inPlot(x, y, z) && E.get_block(x, y, z)) base.add(x + ',' + y + ',' + z);
-    G = { t: 180, theme: THEMES[Math.floor(Math.random() * THEMES.length)], page: 0, base, rep: 0 };
+    const pool = THEMES.slice().sort(() => Math.random() - 0.5).slice(0, 3);
+    G = { phase: 'vote', t: 300, theme: pool[0], page: 0, base, rep: 0, brush: 1, undo: [], warned: new Set(), tour: null };
     this.hot();
-    banner('Theme: ' + G.theme, 'You have 3 minutes. Build inside the stone ring!', '#33d9cc', 4500);
-    say(`<b>Build Battle</b> theme: <b>${G.theme}</b>`, 15000);
-    say('<b>Right-click</b> to place · <b>click</b> to break · <b>R</b> swaps palettes.', 15000);
-    say('Hold <b>Space</b> to fly up. Done early? Menu (E) → Finish &amp; judge.', 15000);
+    this.openVote(pool);
   },
-  hot() { setHotbar(PAL[G.page].map((id) => ({ block: id, tip: BLOCK[id][0] }))); },
-  page() { G.page = 1 - G.page; this.hot(); say(G.page ? 'Palette 2: nature & stone' : 'Palette 1: wool colors', 2500); },
+  openVote(pool) {
+    const list = $('voteList'); list.innerHTML = '';
+    let left = 15;
+    const pickTheme = (th) => {
+      clearInterval(voteTimer); voteTimer = null;
+      $('vote').hidden = true; G.theme = th; G.phase = 'build';
+      banner('Theme: ' + th, 'You have 5 minutes. Build inside the stone ring!', '#33d9cc', 4200);
+      say(`<b>Build Battle</b> theme: <b>${th}</b>`, 20000);
+      say('<b>Right-click</b> place · <b>click</b> break · <b>R</b> next palette · <b>G</b> 3×3 brush · <b>Z</b> undo', 20000);
+      say('<b>Space</b> fly up · <b>X</b> fly down · <b>F</b> paints the floor · <b>middle-click</b> copies a block', 20000);
+      lockMouse();
+    };
+    pool.forEach((th, i) => {
+      const b = document.createElement('button'); b.className = 'game';
+      b.innerHTML = `<i style="background:${['var(--p0)', 'var(--p1)', 'var(--p2)'][i]}"></i><span>${th}</span><em>vote</em>`;
+      b.addEventListener('click', () => pickTheme(th));
+      list.appendChild(b);
+    });
+    $('voteN').textContent = `Pick what everyone builds. Auto-pick in ${left}s.`;
+    $('vote').hidden = false; releaseMouse();
+    clearInterval(voteTimer);
+    voteTimer = setInterval(() => {
+      if (scene !== 'build' || !G || G.phase !== 'vote') { clearInterval(voteTimer); voteTimer = null; return; }
+      left--; $('voteN').textContent = `Pick what everyone builds. Auto-pick in ${left}s.`;
+      if (left <= 0) pickTheme(pool[Math.floor(Math.random() * pool.length)]);
+    }, 1000);
+  },
+  hot() { setHotbar(PAL[G.page].ids.map((id) => ({ block: id, tip: bName(id) }))); },
+  page() { G.page = (G.page + 1) % PAL.length; this.hot(); say(`Palette ${G.page + 1}: <b>${PAL[G.page].name}</b>`, 2500); },
+  brush() { G.brush = G.brush === 1 ? 3 : 1; say(G.brush === 3 ? '<b>3×3 brush</b> on: big walls fast!' : '<b>1×1 brush</b>: one block at a time.', 2500); },
+  target() { return rayAny(7); },
+  // the cells a click affects: just the hit cell, or a 3x3 square on the face you are looking at
+  cells(cx, cy, cz, h) {
+    if (G.brush === 1) return [[cx, cy, cz]];
+    const n = h.prev ? [h.prev[0] - h.x, h.prev[1] - h.y, h.prev[2] - h.z] : [0, 1, 0];
+    const out = [];
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      if (n[0]) out.push([cx, cy + a, cz + b]); else if (n[1]) out.push([cx + a, cy, cz + b]); else out.push([cx + a, cy + b, cz]);
+    }
+    return out;
+  },
+  record(list) { if (list.length) { G.undo.push(list); if (G.undo.length > 60) G.undo.shift(); } },
   primary(dt, held, pressed) {
-    if (!held) { G.rep = 0; return; }
+    if (G.phase !== 'build' || !held) { G.rep = 0; return; }
     G.rep -= dt; if (!pressed && G.rep > 0) return; G.rep = 0.2;
-    const h = aim(7); if (!h) return;
-    if (!inPlot(h.x, h.y, h.z)) return warn('You can only break blocks inside your plot.');
-    setBlock(h.x, h.y, h.z, 0);
+    const h = this.target(); if (!h) return;
+    const changed = [];
+    for (const [x, y, z] of this.cells(h.x, h.y, h.z, h)) {
+      const id = E.get_block(x, y, z);
+      if (!id || !inPlot(x, y, z)) continue;
+      changed.push([x, y, z, id]); setBlock(x, y, z, 0);
+    }
+    if (!changed.length) warn('You can only break blocks inside your plot.');
+    this.record(changed);
   },
-  secondary() { tryPlace(PAL[G.page][selected], (x, y, z) => inPlot(x, y, z) || (warn('Build inside the stone ring!'), false)); },
+  secondary() {
+    if (G.phase !== 'build') return;
+    const h = this.target(); if (!h || !h.prev) return;
+    const id = PAL[G.page].ids[selected];
+    const changed = [];
+    for (const [x, y, z] of this.cells(h.prev[0], h.prev[1], h.prev[2], h)) {
+      if (!inPlot(x, y, z)) continue;
+      const cur = E.get_block(x, y, z); if (cur && cur !== 4) continue;
+      if (SOLID(id) && E.player_overlaps(x, y, z)) continue;
+      changed.push([x, y, z, cur]); setBlock(x, y, z, id);
+    }
+    if (!changed.length) warn('Build inside the stone ring!');
+    this.record(changed);
+  },
+  undoLast() {
+    if (G.phase !== 'build') return;
+    const last = G.undo.pop(); if (!last) return warn('Nothing to undo.');
+    for (let i = last.length - 1; i >= 0; i--) { const [x, y, z, id] = last[i]; setBlock(x, y, z, id); }
+    say('Undone.', 1500);
+  },
+  pickBlock() {
+    if (G.phase !== 'build') return;
+    const h = this.target(); if (!h) return;
+    for (let p = 0; p < PAL.length; p++) { const i = PAL[p].ids.indexOf(h.id); if (i >= 0) { G.page = p; this.hot(); pick(i, true); say(`Copied <b>${bName(h.id)}</b>`, 1500); return; } }
+    warn('That block is not in your palettes.');
+  },
+  paintFloor() {
+    if (G.phase !== 'build') return;
+    const id = PAL[G.page].ids[selected];
+    if (!SOLID(id)) return warn('Pick a solid block to paint the floor (not water or magic).');
+    const changed = [];
+    for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) {
+      if (!onFloor(x, z)) continue;
+      const cur = E.get_block(x, 16, z); if (!cur || cur === 9 || cur === id) continue;
+      changed.push([x, 16, z, cur]); setBlock(x, 16, z, id);
+    }
+    this.record(changed); say(`Floor painted <b>${bName(id)}</b>. Press <b>Z</b> to undo.`, 3000);
+  },
   update(dt) {
+    if (G.phase === 'tour') {
+      G.tour.t = (performance.now() - G.tour.start) / 1000;
+      if (G.tour.t > 5) this.results();
+      return;
+    }
+    if (G.phase !== 'build') return;
     G.t -= dt;
-    if ((keys.Space || touchJump) && E.player_y() < 36) E.player_push(0, 6, 0);
+    const flyUp = keys.Space || touchJump, flyDown = keys.KeyX || keys.ControlLeft;
+    if (flyUp && E.player_y() < 36) E.player_push(0, 6, 0);
+    else if (!flyDown && !E.player_on_ground()) E.player_push(0, 0, 0); // hover
+    for (const [at, msg] of [[60, '1 minute left!'], [30, '30 seconds left!'], [10, '10 seconds!']]) {
+      if (G.t <= at && !G.warned.has(at)) { G.warned.add(at); banner(msg, 'Add the finishing touches.', '#ff8f26', 2000); }
+    }
+    if (G.t <= 5 && G.t > 0) { const s = Math.ceil(G.t); if (!G.warned.has('c' + s)) { G.warned.add('c' + s); banner(String(s), '', '#ff5280', 800); } }
     if (G.t <= 0) this.finish();
   },
+  // judges' fly-around
   finish() {
-    let n = 0, maxY = 16, minX = 99, maxX = -1, minZ = 99, maxZ = -1; const ids = new Set();
+    if (G.phase !== 'build') return;
+    const S = []; let sx = 0, sy = 0, sz = 0;
     for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) for (let y = 17; y <= 38; y++) {
       if (!inPlot(x, y, z) || G.base.has(x + ',' + y + ',' + z)) continue;
       const b = E.get_block(x, y, z); if (!b) continue;
-      n++; ids.add(b); maxY = Math.max(maxY, y); minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+      S.push([x, y, z, b]); sx += x; sy += y; sz += z;
     }
-    const k = ids.size, h = maxY - 16, span = n ? Math.max(maxX - minX, maxZ - minZ) + 1 : 0;
-    const s1 = n ? clamp10(1 + Math.sqrt(n) * 0.9) : 1;
-    const s2 = n ? clamp10(1 + k * 1.3 + (k >= 3 ? 1 : 0)) : 1;
-    const s3 = n ? clamp10(1 + h * 0.8 + Math.min(3, span / 4)) : 1;
-    const total = s1 + s2 + s3, best = store.get('buildBest'), rec = best == null || total > best;
+    G.build = S;
+    const n = S.length || 1;
+    const c = S.length ? [sx / n + 0.5, sy / n + 0.5, sz / n + 0.5] : [32, 18, 32];
+    const span = S.length ? Math.max(...S.map(([x, y, z]) => Math.max(Math.abs(x + 0.5 - c[0]), Math.abs(z + 0.5 - c[2]), Math.abs(y + 0.5 - c[1])))) : 4;
+    G.tour = { t: 0, start: performance.now(), c, r: Math.max(7, span * 1.9 + 4) };
+    G.phase = 'tour'; $('minebar').hidden = true;
+    banner("TIME'S UP!", 'The judges are flying around your build…', '#33d9cc', 4800);
+  },
+  camera() {
+    if (!G || G.phase !== 'tour') return null;
+    const { t, c, r } = G.tour, a = t * 0.75 + Math.PI;
+    const eye = [c[0] + Math.sin(a) * r, Math.min(38, c[1] + r * 0.5), c[2] + Math.cos(a) * r];
+    let d = [c[0] - eye[0], c[1] - eye[1], c[2] - eye[2]]; const l = Math.hypot(...d); d = d.map((v) => v / l);
+    return { eye, dir: d };
+  },
+  results() {
+    const S = G.build, n = S.length;
+    const ids = new Set(S.map((b) => b[3]));
+    const glow = S.some((b) => GLOW.has(b[3]));
+    const maxY = n ? Math.max(...S.map((b) => b[1])) : 16, h = maxY - 16;
+    const xs = S.map((b) => b[0]), zs = S.map((b) => b[2]);
+    const span = n ? Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs)) + 1 : 0;
+    // mirror symmetry left-right or front-back
+    let sym = 0;
+    if (n) {
+      const key = new Set(S.map(([x, y, z]) => x + ',' + y + ',' + z));
+      const mx = Math.min(...xs) + Math.max(...xs), mz = Math.min(...zs) + Math.max(...zs);
+      const a = S.filter(([x, y, z]) => key.has((mx - x) + ',' + y + ',' + z)).length / n;
+      const b = S.filter(([x, y, z]) => key.has(x + ',' + y + ',' + (mz - z))).length / n;
+      sym = Math.max(a, b);
+    }
+    const s1 = n ? clamp10(1 + Math.sqrt(n) * 0.75) : 1;
+    const s2 = n ? clamp10(1 + ids.size * 1.1 + (glow ? 1.5 : 0)) : 1;
+    const s3 = n ? clamp10(1 + h * 0.55 + Math.min(3, span / 4) + sym * 3) : 1;
+    const total = s1 + s2 + s3;
+    const best = store.get('buildBest'), rec = best == null || total > best;
     if (rec) store.set('buildBest', total);
-    const verdict = !n ? 'The judges could not find your build!' : total >= 26 ? 'LEGENDARY! The judges are speechless.' : total >= 20 ? 'Amazing build!' : total >= 13 ? 'Nice work! Keep going bigger.' : 'A good start. Try more blocks and colors!';
-    showResult('JUDGING: ' + G.theme.toUpperCase(), '#33d9cc', verdict, [
-      ['Blocks placed', n], ['Colors / types', k], ['Height', h + ' blocks'],
-      ['Judge Brick (size)', s1 + '/10'], ['Judge Pixel (color)', s2 + '/10'], ['Judge Skye (shape)', s3 + '/10'],
-      ['TOTAL', total + '/30' + (rec ? ' (new best!)' : ' · best ' + best)],
+    const board = RIVALS.map((name) => ({ name, score: 8 + Math.floor(Math.random() * 17) })).concat([{ name: 'You', score: total, you: true }]);
+    board.sort((a, b) => b.score - a.score || (a.you ? -1 : 1));
+    const place = board.findIndex((p) => p.you) + 1;
+    const ord = ['1st', '2nd', '3rd', '4th'];
+    const vote = (s) => { const [, word, col] = voteOf(s); return `<b style="color:${col}">${word}</b> (${s})`; };
+    const title = place === 1 ? 'YOU WON BUILD BATTLE!' : `YOU PLACED ${ord[place - 1].toUpperCase()}!`;
+    const sub = !n ? 'The judges could not find a build!' : place === 1 ? `Your ${G.theme.toLowerCase()} beat everyone.` : 'So close! Try more colors, height and symmetry.';
+    showResult(title, place === 1 ? '#ffd36b' : '#33d9cc', sub, [
+      ['Theme', G.theme],
+      ['Judge Brick (size)', vote(s1)], ['Judge Pixel (color)', vote(s2)], ['Judge Skye (shape)', vote(s3)],
+      ['Your score', total + '/30' + (rec ? ' (new best!)' : ' · best ' + best)],
+      ...board.map((p, i) => [`${ord[i]} ${p.you ? '<b>You</b>' : p.name}`, p.score + '/30']),
     ]);
   },
   board() {
-    return `<h2>BUILD BATTLE</h2><div class="big">${G.theme}</div>${row('Time left', fmtTime(Math.max(0, G.t)))}${row('Palette', (G.page + 1) + ' of 2 (R)')}<hr>${row('Click', 'break')}${row('Right-click', 'place')}${row('Space', 'fly up')}`;
+    if (G.phase === 'vote') return '<h2>BUILD BATTLE</h2><div class="big">Voting…</div>';
+    if (G.phase === 'tour') return `<h2>BUILD BATTLE</h2><div class="big">${G.theme}</div>${row('Judging', '…')}`;
+    const low = G.t <= 30 ? ' style="color:#ff5280"' : '';
+    return `<h2>BUILD BATTLE</h2><div class="big">${G.theme}</div><div class="big"${low}>${fmtTime(Math.max(0, G.t))}</div>`
+      + `${row('Palette (R)', PAL[G.page].name)}${row('Brush (G)', G.brush + '×' + G.brush)}<hr>`
+      + `${row('Click', 'break')}${row('Right-click', 'place')}${row('Space / X', 'fly up / down')}${row('Z', 'undo')}${row('F', 'paint floor')}`;
   },
 };
 
@@ -1058,7 +1385,7 @@ function loadWorld(mode) {
 }
 function resetHud() {
   $('minebar').hidden = true; $('prompt').hidden = true; $('ridebar').hidden = true;
-  closeMenu(); closeCraft(); $('result').hidden = true; mouseHeld = false; touchUse = false;
+  closeMenu(); closeCraft(); $('result').hidden = true; $('vote').hidden = true; clearInterval(voteTimer); mouseHeld = false; touchUse = false;
   chatEl.innerHTML = ''; bannerT = 0; if (!joining) $('toast').hidden = true;
 }
 function loadGame(i) {
@@ -1094,7 +1421,12 @@ addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (e.code === 'KeyE' && $('result').hidden && $('craft').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
   if (e.code === 'KeyC' && scene === 'survival' && $('menu').hidden && $('result').hidden) { $('craft').hidden ? openCraft() : (closeCraft(), lockMouse()); }
-  if (e.code === 'KeyR' && scene === 'build' && G && !G.over && !anyDialog()) Build.page();
+  if (scene === 'build' && G && !G.over && !anyDialog()) {
+    if (e.code === 'KeyR') Build.page();
+    if (e.code === 'KeyG') Build.brush();
+    if (e.code === 'KeyZ') Build.undoLast();
+    if (e.code === 'KeyF') Build.paintFloor();
+  }
   if (e.code === 'KeyB' && !joining) { if (scene !== 'lobby') toLobby(); else { if (E.is_riding()) E.toggle_ride(); E.respawn_player(); yaw = 0; pitch = -0.05; race.on = false; say('Back at spawn.', 3000); } }
   if (e.code === 'KeyQ') whistle();
   if (e.code === 'KeyF' && !anyDialog()) ride();
@@ -1109,6 +1441,7 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('mousedown', (e) => {
   if (!playing || anyDialog()) return;
   if (e.button === 2) { rightHeld = true; secondary(); return; }
+  if (e.button === 1) { e.preventDefault(); if (scene === 'build' && G && !G.over) Build.pickBlock(); return; }
   if (e.button !== 0) return;
   dragging = true; if (scene !== 'lobby') mouseHeld = true;
   lockMouse();
@@ -1187,7 +1520,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -1237,9 +1570,11 @@ function frame(now) {
   const riding = lobby && E.is_riding();
   const speed = E.player_speed();
   if (E.player_on_ground() && speed > 0.5) bob += dt * speed * (riding ? 0.9 : 2.2);
-  const eye = [E.player_x(), E.player_y() + (riding ? 2.1 : 1.62) + Math.sin(bob) * (riding ? 0.05 : 0.04), E.player_z()];
-  const dir = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+  let eye = [E.player_x(), E.player_y() + (riding ? 2.1 : 1.62) + Math.sin(bob) * (riding ? 0.05 : 0.04), E.player_z()];
+  let dir = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
   curEye = eye; curDir = dir;
+  const cam = !lobby && G && GAMES[scene].camera ? GAMES[scene].camera() : null;
+  if (cam) { eye = cam.eye; dir = cam.dir; }
   const fovBase = 70 * Math.PI / 180, fov = fovBase + (riding ? Math.min(0.35, speed / 70) : 0);
   const asp = canvas.width / canvas.height;
   const P = persp(fov, asp, 0.05, 260), L = look(eye, dir), VP = mul(P, L.m);
@@ -1271,7 +1606,7 @@ function frame(now) {
   if (scene === 'wars' && G) { const V = [], I = []; Wars.draw(V, I); if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES); }
   // targeted block outline
   if (!lobby && G && !G.over && GAMES[scene].outline && playing && !blocked) {
-    const h = aim(scene === 'build' ? 7 : 5);
+    const h = scene === 'build' ? Build.target() : aim(5);
     if (h) drawGeo(lineGeo, outlineVerts(h), LINE_I, gl.LINES);
   }
   // water + portals
