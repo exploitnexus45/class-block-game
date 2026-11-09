@@ -770,7 +770,7 @@ const RECIPES = [
   { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3, table: true },
   { name: 'Bucket', need: { iron: 3 }, bucket: true, table: true, make: () => { G.bucket = 1; Survival.giveBucket(); } },
   { name: 'Diamond pickaxe', need: { diamond: 3, 7: 2 }, tool: 4, table: true },
-  { name: 'Flint and steel', need: { iron: 1, flint: 1 }, fns: true, table: true, make: () => { G.fns = true; Survival.giveHot('fns'); } },
+  { name: 'Flint and steel', need: { iron: 1, flint: 1 }, fns: true, table: true, make: () => { G.fns = true; Survival.giveTool('fns'); } },
   { name: 'Gold block', need: { gold: 4 }, block: 10, table: true, make: () => Survival.add(10, 1) },
 ];
 const SMELT = [
@@ -801,8 +801,8 @@ function recipeButton(r, el) {
     if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); } else r.make();
     if (r.block === TABLE) say('Crafting table made! Put it in your hotbar, place it (right-click), then right-click it to craft tools.', 8000);
     if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
-    if (r.bucket) say('Bucket crafted! Right-click water with it to fill it.', 7000);
-    if (r.fns) say('Flint and steel! Right-click the inside of an obsidian frame to light a <b>Nether portal</b>.', 8000);
+    if (r.bucket) say(`Bucket crafted! It is in hotbar slot <b>${G.hot.indexOf('bucket') + 1}</b>. Right-click water with it to fill it.`, 8000);
+    if (r.fns) say(`Flint and steel! It is in hotbar slot <b>${G.hot.indexOf('fns') + 1}</b>. Right-click an obsidian frame to light a <b>Nether portal</b>.`, 9000);
     Survival.hot(); renderCraft();
   });
   el.appendChild(b);
@@ -994,7 +994,12 @@ const Survival = {
     this.giveHot(id); this.hot();
   },
   giveHot(k) { if (!G.hot.includes(k)) { const i = G.hot.indexOf(null); if (i >= 0) G.hot[i] = k; } },
-  giveBucket() { this.giveHot('bucket'); },
+  // tools always land in the hotbar: an empty slot if there is one, otherwise the slot you are holding
+  giveTool(k) {
+    if (!G.hot.includes(k)) { const i = G.hot.indexOf(null); G.hot[i >= 0 ? i : selected] = k; }
+    this.hot(); return G.hot.indexOf(k) + 1;
+  },
+  giveBucket() { this.giveTool('bucket'); },
   toSlot(k) {
     const j = selected, prev = G.hot.indexOf(k);
     if (prev >= 0) G.hot[prev] = G.hot[j];
@@ -1965,7 +1970,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
