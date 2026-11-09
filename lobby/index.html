@@ -1,0 +1,1309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Class Block Game Lobby</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
+<style>
+/* Layout: full-screen WebGL world, HUD pinned to the four corners plus a centered hotbar. Single dark game look. */
+:root {
+  --ink: #f4f1e6;
+  --ink-dim: #b9b3a3;
+  --panel: rgba(16, 14, 22, 0.62);
+  --panel-solid: #1b1824;
+  --edge-hi: rgba(255, 255, 255, 0.16);
+  --edge-lo: rgba(0, 0, 0, 0.55);
+  --gold: #ffd36b;
+  --grass: #6fbf4a;
+  --p0: #a35cff; --p1: #33d9cc; --p2: #ff8f26; --p3: #ff5280;
+  --display: "Silkscreen", "Courier New", monospace;
+  --body: "VT323", "Courier New", monospace;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: #7fb6e8; color: var(--ink); font-family: var(--body); overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.panel { background: var(--panel); box-shadow: inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo); }
+
+#crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); pointer-events: none; }
+#crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,.85); mix-blend-mode: difference; }
+#crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
+#crosshair::after { top: 8px; left: 0; height: 2px; width: 18px; }
+
+#board { position: fixed; right: calc(12px + env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); width: 236px; padding: 10px 12px 12px; font-size: 20px; line-height: 1.05; }
+#board h2 { margin: 0 0 8px; font: 700 13px/1.2 var(--display); letter-spacing: .06em; color: var(--gold); text-align: center; }
+#board .row { white-space: nowrap; display: flex; justify-content: space-between; gap: 8px; }
+#board .row span:last-child { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+#board .sw { display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: 1px; }
+#board hr { border: 0; height: 2px; background: var(--edge-hi); margin: 8px 0; }
+
+#chat { position: fixed; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(92px + env(safe-area-inset-bottom, 0px)); width: min(440px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 2px; font-size: 21px; pointer-events: none; }
+#chat div { background: rgba(0,0,0,.42); padding: 1px 8px; text-shadow: 2px 2px 0 rgba(0,0,0,.6); transition: opacity .6s; }
+#chat b { font-weight: 400; color: var(--gold); }
+
+#hotbar { position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; gap: 2px; padding: 3px; }
+.slot { width: 52px; height: 52px; position: relative; background: rgba(40, 36, 52, .7); box-shadow: inset 2px 2px 0 var(--edge-lo), inset -2px -2px 0 var(--edge-hi); border: 0; padding: 0; cursor: pointer; color: var(--ink); font-family: var(--body); }
+.slot.on { outline: 3px solid #fff; outline-offset: -1px; z-index: 1; }
+.slot:focus-visible { outline: 3px solid var(--gold); }
+.slot .k { position: absolute; left: 4px; top: 2px; font-size: 15px; color: var(--ink-dim); }
+.slot .ic { position: absolute; inset: 11px; image-rendering: pixelated; }
+.slot .tip { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 6px; white-space: nowrap; font-size: 18px; background: var(--panel-solid); padding: 2px 8px; opacity: 0; pointer-events: none; transition: opacity .15s; }
+.slot:hover .tip { opacity: 1; }
+
+#ridebar { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); font: 700 13px var(--display); letter-spacing: .08em; padding: 6px 12px; color: var(--gold); }
+#prompt { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); font-size: 24px; padding: 4px 12px; pointer-events: none; text-shadow: 2px 2px 0 rgba(0,0,0,.6); }
+
+.label { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); font: 700 14px/1 var(--display); padding: 5px 8px 6px; background: rgba(0,0,0,.45); white-space: nowrap; pointer-events: none; letter-spacing: .04em; }
+.label small { display: block; font: 18px/1 var(--body); color: var(--ink-dim); letter-spacing: 0; margin-top: 3px; text-align: center; }
+.label.dog { font: 20px/1 var(--body); padding: 2px 8px; }
+
+#toast { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; padding: 14px 22px; min-width: min(360px, calc(100vw - 32px)); }
+#toast h3 { margin: 0 0 6px; font: 700 20px var(--display); }
+#toast p { margin: 0; font-size: 21px; color: var(--ink-dim); max-width: 34ch; }
+#toast .bar { height: 8px; margin-top: 10px; background: rgba(255,255,255,.12); }
+#toast .bar i { display: block; height: 100%; width: 0; background: var(--gold); }
+
+#menu, #start { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .55); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+.card { background: var(--panel-solid); box-shadow: inset 3px 3px 0 var(--edge-hi), inset -3px -3px 0 var(--edge-lo), 0 20px 60px rgba(0,0,0,.5); padding: 22px 24px; width: min(460px, 100%); }
+#start h1 { margin: 0; font: 700 clamp(26px, 6vw, 40px)/1 var(--display); color: var(--gold); text-shadow: 3px 3px 0 #6b3d00; text-wrap: balance; }
+#start .sub { font-size: 24px; color: var(--ink-dim); margin: 6px 0 16px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 21px; margin-bottom: 18px; }
+.keys kbd { font: 700 11px/1 var(--display); padding: 5px 6px 4px; background: #2c2838; box-shadow: inset -2px -2px 0 var(--edge-lo), inset 2px 2px 0 var(--edge-hi); justify-self: start; }
+.btn { display: block; width: 100%; font: 700 15px var(--display); letter-spacing: .06em; color: var(--ink); background: #5a8f3a; border: 0; padding: 12px; cursor: pointer; box-shadow: inset 3px 3px 0 rgba(255,255,255,.25), inset -3px -3px 0 rgba(0,0,0,.35); }
+.btn:hover { background: #67a343; }
+.btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+#menu h2 { margin: 0 0 14px; font: 700 18px var(--display); color: var(--gold); }
+.games { display: grid; gap: 8px; }
+.game { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: 22px var(--body); color: var(--ink); background: #2a2636; border: 0; padding: 8px 10px; cursor: pointer; box-shadow: inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo); }
+.game:hover, .game:focus-visible { background: #363146; outline: none; }
+.game i { width: 26px; height: 26px; flex: none; box-shadow: inset -3px -3px 0 rgba(0,0,0,.3); }
+.game span { flex: 1; }
+.game em { font-style: normal; color: var(--ink-dim); font-size: 18px; }
+.close { margin-top: 14px; background: #4a4458; }
+.close:hover { background: #575069; }
+
+#touch { position: fixed; inset: 0; pointer-events: none; }
+#stick { position: absolute; left: calc(28px + env(safe-area-inset-left, 0px)); bottom: calc(96px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%; background: rgba(0,0,0,.25); border: 2px solid rgba(255,255,255,.25); pointer-events: auto; }
+#stick i { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: rgba(255,255,255,.35); }
+.tbtn { position: absolute; right: calc(24px + env(safe-area-inset-right, 0px)); width: 70px; height: 70px; pointer-events: auto; border: 0; font: 700 11px var(--display); color: var(--ink); background: rgba(0,0,0,.35); box-shadow: inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo); }
+#tjump { bottom: calc(110px + env(safe-area-inset-bottom, 0px)); }
+#tride { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
+#tsprint { bottom: calc(110px + env(safe-area-inset-bottom, 0px)); right: calc(104px + env(safe-area-inset-right, 0px)); }
+
+#err { position: fixed; inset: auto 16px 16px 16px; padding: 12px; background: #5a1f24; font-size: 20px; }
+
+@media (max-width: 640px) {
+  #board { width: 160px; font-size: 17px; padding: 8px; }
+  #board h2 { font-size: 11px; }
+  .slot { width: 40px; height: 40px; }
+  .slot .ic { inset: 8px; }
+  #chat { font-size: 18px; width: calc(100vw - 200px); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+}
+#result, #craft { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+#menu h2.h2b { margin: 18px 0 10px; }
+#result h2, #craft h2 { margin: 0 0 12px; font: 700 20px var(--display); color: var(--gold); text-wrap: balance; }
+#resB { font-size: 22px; }
+#resB p { margin: 0 0 10px; color: var(--ink-dim); }
+#resB .line { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 2px solid rgba(255,255,255,.07); }
+#resB .line span:last-child { color: var(--gold); text-align: right; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.btn.alt { background: #4a4458; }
+.btn.alt:hover { background: #575069; }
+.game:disabled { opacity: .45; cursor: not-allowed; }
+.slot .blk { position: absolute; inset: 12px; box-shadow: inset 3px 3px 0 rgba(255,255,255,.28), inset -3px -3px 0 rgba(0,0,0,.35); }
+.slot .n { position: absolute; right: 4px; bottom: 0; font-size: 17px; text-shadow: 2px 2px 0 #000; }
+#board .row.done span:first-child { color: var(--grass); }
+#board .row span:first-child { white-space: normal; }
+#board .big { font: 700 17px/1.3 var(--display); text-align: center; margin: 0 0 6px; color: var(--ink); }
+#minebar { position: fixed; left: 50%; top: calc(50% + 18px); transform: translateX(-50%); width: 46px; height: 5px; background: rgba(0,0,0,.5); pointer-events: none; }
+#minebar i { display: block; height: 100%; width: 0; background: #fff; }
+#hurt { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 140px 40px rgba(220, 30, 40, .75); opacity: 0; transition: opacity .3s; }
+#tuse { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); right: calc(104px + env(safe-area-inset-right, 0px)); }
+#tplace { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 640px) { .slot .blk { inset: 9px; } .slot .n { font-size: 14px; } }
+@media (prefers-reduced-motion: reduce) { #chat div { transition: none; } #hurt { transition: none; } }
+</style>
+
+</head>
+<body>
+<canvas id="gl" aria-label="3D lobby world"></canvas>
+<div id="crosshair" hidden></div>
+
+<aside id="board" class="panel" aria-label="Lobby scoreboard">
+  <h2>CLASS BLOCK GAME</h2>
+  <div class="row"><span>Lobby</span><span>#1</span></div>
+  <div class="row"><span>Online</span><span id="online">1</span></div>
+  <div class="row"><span>Dog</span><span id="dogstate">Doing laps</span></div>
+  <div class="row"><span>Speed</span><span id="speed">0.0 b/s</span></div>
+  <div class="row"><span>Best lap</span><span id="bestlap">—</span></div>
+  <div class="row"><span>Sky islands</span><span id="skycount">0 of 4</span></div>
+  <hr>
+  <div class="row"><span><i class="sw" style="background:var(--p0)"></i>Survival</span><span>east</span></div>
+  <div class="row"><span><i class="sw" style="background:var(--p1)"></i>Build Battle</span><span>west</span></div>
+  <div class="row"><span><i class="sw" style="background:var(--p2)"></i>Parkour</span><span>south</span></div>
+  <div class="row"><span><i class="sw" style="background:var(--p3)"></i>Block Wars</span><span>north</span></div>
+</aside>
+
+<div id="chat" aria-live="polite"></div>
+<div id="prompt" class="panel" hidden></div>
+<div id="ridebar" class="panel" hidden>RIDING NUGGET · RIGHT-CLICK FOR TURBO · F TO HOP OFF</div>
+<div id="minebar" hidden><i></i></div>
+<div id="hurt"></div>
+
+<nav id="hotbar" class="panel" aria-label="Hotbar"></nav>
+
+<div id="labels"></div>
+
+<div id="toast" class="panel" hidden><h3 id="toastT"></h3><p id="toastP"></p><div class="bar"><i id="toastBar"></i></div></div>
+
+<div id="menu" hidden>
+  <div class="card" role="dialog" aria-label="Game menu">
+    <div id="menuGame" hidden>
+      <h2 id="menuTitle">PAUSED</h2>
+      <div class="games">
+        <button class="btn" id="menuFinish" hidden>FINISH &amp; JUDGE</button>
+        <button class="btn" id="menuRestart">RESTART</button>
+        <button class="btn alt" id="menuLobby">BACK TO LOBBY</button>
+      </div>
+      <h2 class="h2b">SWITCH GAME</h2>
+    </div>
+    <h2 id="menuPick">PICK A GAME</h2>
+    <div class="games" id="games"></div>
+    <button class="btn close" id="menuClose">BACK TO LOBBY</button>
+  </div>
+</div>
+
+<div id="result" hidden>
+  <div class="card" role="dialog" aria-labelledby="resT">
+    <h2 id="resT"></h2>
+    <div id="resB"></div>
+    <div class="row2"><button class="btn" id="resAgain">PLAY AGAIN</button><button class="btn alt" id="resLobby">LOBBY</button></div>
+  </div>
+</div>
+
+<div id="craft" hidden>
+  <div class="card" role="dialog" aria-label="Crafting">
+    <h2>CRAFTING</h2>
+    <div class="games" id="recipes"></div>
+    <button class="btn close" id="craftClose">DONE (C)</button>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div id="stick"><i></i></div>
+  <button class="tbtn" id="tjump">JUMP</button>
+  <button class="tbtn" id="tsprint">TURBO</button>
+  <button class="tbtn" id="tride">RIDE</button>
+  <button class="tbtn" id="tuse" hidden>MINE</button>
+  <button class="tbtn" id="tplace" hidden>PLACE</button>
+</div>
+
+<div id="start">
+  <div class="card">
+    <h1>CLASS BLOCK GAME</h1>
+    <div class="sub">Lobby #1 · pick a portal, or race Nugget around the track</div>
+    <div class="keys">
+      <kbd>W A S D</kbd><span>Walk</span>
+      <kbd>SPACE</kbd><span>Jump</span>
+      <kbd>SHIFT</kbd><span>Sprint</span>
+      <kbd>F</kbd><span>Ride or hop off Nugget the dog</span>
+      <kbd>Q</kbd><span>Whistle for Nugget</span>
+      <kbd>CLICK</kbd><span>Mine, break or throw (in games)</span>
+      <kbd>RIGHT-CLICK</kbd><span>Hold for turbo on Nugget · place blocks in games</span>
+      <kbd>E</kbd><span>Game menu</span>
+      <kbd>B</kbd><span>Back to the lobby</span>
+      <kbd>MOUSE</kbd><span>Look around (Esc frees the cursor)</span>
+    </div>
+    <button class="btn" id="play">PLAY</button>
+  </div>
+</div>
+<div id="err" hidden></div>
+
+<script>
+const WASM_B64 = "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";
+(async () => {
+const $ = (id) => document.getElementById(id);
+const showErr = (m) => { $('err').hidden = false; $('err').textContent = m; };
+try {
+// ---------- WebAssembly engine ----------
+const bytes = Uint8Array.from(atob(WASM_B64), (c) => c.charCodeAt(0));
+const { instance } = await WebAssembly.instantiate(bytes, { env: {} });
+const E = instance.exports;
+E.generate(20261108);
+let nIdx = E.build_mesh();
+let nOpaque = E.opaque_index_count();
+const nVert = E.vert_count();
+const mem = E.memory.buffer;
+const vertData = new Float32Array(mem, E.verts_ptr(), nVert * 9);
+const idxData = new Uint32Array(mem, E.index_ptr(), nIdx);
+
+// ---------- WebGL ----------
+const canvas = $('gl');
+const gl = canvas.getContext('webgl2', { antialias: true });
+if (!gl) throw new Error('This lobby needs WebGL 2, which this browser does not support.');
+
+const VS = `#version 300 es
+in vec3 aPos; in vec3 aCol; in vec3 aAux;
+uniform mat4 uVP; uniform vec3 uEye;
+out vec3 vPos; out vec3 vCol; out vec3 vAux; out float vDist;
+void main(){ vPos=aPos; vCol=aCol; vAux=aAux; vDist=length(aPos-uEye); gl_Position=uVP*vec4(aPos,1.0); }`;
+const FS = `#version 300 es
+precision highp float;
+in vec3 vPos; in vec3 vCol; in vec3 vAux; in float vDist;
+uniform float uTime; uniform vec3 uFog;
+out vec4 o;
+float h3(vec3 p){ p=fract(p*0.3183099+0.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+void main(){
+  int d=int(vAux.x+0.5); int m=int(vAux.y+0.5); float lt=vAux.z;
+  vec2 uv; float ax;
+  if(d<2){uv=vPos.zy; ax=vPos.x;} else if(d<4){uv=vPos.xz; ax=vPos.y;} else {uv=vPos.xy; ax=vPos.z;}
+  float axl=floor(ax+((d%2==0)?-0.5:0.5));
+  vec2 q=floor(uv*16.0);
+  float n=h3(vec3(q,axl*7.0+float(d)));
+  vec2 fq=(mod(q,16.0)+0.5)/16.0;
+  vec3 c=vCol; float a=1.0;
+  if(m==0){ c*=0.88+0.22*n; }
+  else if(m==4){ float edge=0.76+0.14*h3(vec3(q.x,3.0,axl)); if(fq.y>edge) c=vec3(0.36,0.62,0.24); c*=0.88+0.22*n; }
+  else if(m==5){ c*=0.72+0.5*n; if(n<0.14) c*=0.5; }
+  else if(m==6){ float row=floor(fq.y*4.0); c*=0.9+0.12*n; if(fract(fq.y*4.0)<0.14) c*=0.7; if(fract(fq.x+mod(row,2.0)*0.5)<0.07) c*=0.8; }
+  else if(m==7){ c*=0.78+0.3*h3(vec3(q.x,floor(q.y/5.0),axl)); }
+  else if(m==8){ float r=floor(fq.y*2.0); bool mortar=fract(fq.y*2.0)<0.1||fract(fq.x*2.0+mod(r,2.0)*0.5)<0.07; c*=mortar?0.68:(0.92+0.12*n); }
+  else if(m==9){ c*=0.68+0.45*h3(vec3(floor(q/3.0),axl)); if(n<0.15) c*=0.78; }
+  else if(m==3){ c*=0.9+0.2*n; lt=1.3; }
+  else if(m==1){ float w=sin(uv.x*3.0+uTime*2.0)*sin(uv.y*2.6-uTime*1.7); c*=0.9+0.14*w+0.08*n; a=0.72; }
+  else if(m==2){ vec2 g=floor(uv*16.0)/16.0; float s=sin(g.x*9.0+uTime*3.0)+sin(g.y*11.0-uTime*2.4)+sin((g.x+g.y)*7.0+uTime*1.9); c=c*(0.7+0.17*s)+0.12*n; lt=1.0; a=0.8; }
+  vec3 col=c*lt;
+  col=mix(col,uFog,smoothstep(30.0,78.0,vDist));
+  o=vec4(col,a);
+}`;
+const SKY_VS = `#version 300 es
+const vec2 P[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
+out vec2 vN; void main(){ vN=P[gl_VertexID]; gl_Position=vec4(P[gl_VertexID],0.999,1.0); }`;
+const SKY_FS = `#version 300 es
+precision highp float;
+in vec2 vN; uniform vec3 uR,uU,uF,uEye; uniform float uTan,uAsp,uTime; uniform vec3 uFog;
+out vec4 o;
+float h2(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+void main(){
+  vec3 d=normalize(uF+vN.x*uAsp*uTan*uR+vN.y*uTan*uU);
+  vec3 zen=vec3(0.33,0.58,0.92), low=vec3(0.52,0.7,0.92);
+  vec3 c = d.y>0.0 ? mix(uFog,zen,pow(clamp(d.y,0.0,1.0),0.6)) : mix(uFog,low,clamp(-d.y*3.0,0.0,1.0));
+  vec3 sd=normalize(vec3(0.45,0.55,0.7)); vec3 sx=normalize(cross(sd,vec3(0,1,0))); vec3 sy=cross(sx,sd);
+  if(dot(d,sd)>0.0){ float a=abs(dot(d,sx)), b=abs(dot(d,sy)); float m=max(a,b);
+    if(m<0.06) c=vec3(1.0,0.97,0.82); else if(m<0.09) c=mix(c,vec3(1.0,0.95,0.75),0.35); }
+  if(d.y>0.02){ float t=(70.0-uEye.y)/d.y; vec2 p=uEye.xz+d.xz*t+vec2(uTime*1.2,0.0);
+    vec2 cell=floor(p/12.0); float k=h2(cell);
+    if(k>0.78){ float fade=clamp(1.0-t/600.0,0.0,1.0); c=mix(c,vec3(1.0),0.85*fade); } }
+  o=vec4(c,1.0);
+}`;
+
+function compile(vs, fs) {
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    gl.attachShader(p, s);
+  }
+  gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aCol'); gl.bindAttribLocation(p, 2, 'aAux');
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const name = gl.getActiveUniform(p, i).name; u[name] = gl.getUniformLocation(p, name); }
+  return { p, u };
+}
+const prog = compile(VS, FS);
+const sky = compile(SKY_VS, SKY_FS);
+const skyVao = gl.createVertexArray();
+
+function makeVao(dynamic) {
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  for (let i = 0; i < 3; i++) { gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, 3, gl.FLOAT, false, 36, i * 12); }
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bindVertexArray(null);
+  return { vao, vb, ib };
+}
+const world = makeVao();
+gl.bindVertexArray(world.vao);
+gl.bufferData(gl.ARRAY_BUFFER, vertData, gl.STATIC_DRAW);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxData, gl.STATIC_DRAW);
+gl.bindVertexArray(null);
+const dogGeo = makeVao();
+
+// ---------- math ----------
+function persp(fov, asp, n, f) { const t = 1 / Math.tan(fov / 2); return [t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0]; }
+function look(e, dir) {
+  const f = dir, up = [0,1,0];
+  let r = [f[1]*up[2]-f[2]*up[1], f[2]*up[0]-f[0]*up[2], f[0]*up[1]-f[1]*up[0]];
+  const rl = Math.hypot(...r); r = r.map(v => v / rl);
+  const u = [r[1]*f[2]-r[2]*f[1], r[2]*f[0]-r[0]*f[2], r[0]*f[1]-r[1]*f[0]];
+  return { m: [r[0],u[0],-f[0],0, r[1],u[1],-f[1],0, r[2],u[2],-f[2],0, -(r[0]*e[0]+r[1]*e[1]+r[2]*e[2]), -(u[0]*e[0]+u[1]*e[1]+u[2]*e[2]), (f[0]*e[0]+f[1]*e[1]+f[2]*e[2]), 1], r, u };
+}
+function mul(a, b) { const o = new Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k*4+r] * b[c*4+k]; o[c*4+r] = s; } return o; }
+
+// ---------- dog model (built each frame from simple boxes) ----------
+const FUR = [0.79,0.54,0.24], FUR_D = [0.55,0.35,0.15], FUR_L = [0.93,0.78,0.55], DARK = [0.12,0.08,0.06], RED = [0.78,0.18,0.16], SADDLE = [0.42,0.22,0.12], GOLDC = [1,0.82,0.35];
+const FACES = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+function rotX(p, a, pv) { const y = p[1]-pv[1], z = p[2]-pv[2], c = Math.cos(a), s = Math.sin(a); return [p[0], pv[1] + y*c - z*s, pv[2] + y*s + z*c]; }
+function rotY(p, a, pv) { const x = p[0]-pv[0], z = p[2]-pv[2], c = Math.cos(a), s = Math.sin(a); return [pv[0] + x*c + z*s, p[1], pv[2] - x*s + z*c]; }
+function buildDog(st) {
+  const V = [], I = [];
+  const cy = Math.cos(st.yaw), sy = Math.sin(st.yaw);
+  const part = (c, h, col, xf) => {
+    for (let f = 0; f < 6; f++) {
+      const n = FACES[f], a = n.findIndex(v => v !== 0), u = (a+1)%3, v = (a+2)%3, base = V.length / 9;
+      let nn = xf(n.map((x,i)=>x), true);
+      const shade = nn[1] > 0.6 ? 1 : nn[1] < -0.6 ? 0.55 : 0.68 + 0.14 * Math.abs(nn[0]);
+      const dir = Math.abs(nn[0]) > Math.abs(nn[2]) ? (Math.abs(nn[0]) > Math.abs(nn[1]) ? (nn[0] > 0 ? 0 : 1) : (nn[1] > 0 ? 2 : 3)) : (Math.abs(nn[2]) > Math.abs(nn[1]) ? (nn[2] > 0 ? 4 : 5) : (nn[1] > 0 ? 2 : 3));
+      for (let k = 0; k < 4; k++) {
+        const du = (k === 1 || k === 2) ? 1 : -1, dv = k >= 2 ? 1 : -1;
+        const p = [c[0], c[1], c[2]]; p[a] += n[a] * h[a]; p[u] += du * h[u]; p[v] += dv * h[v];
+        const w = xf(p, false);
+        const wx = st.x + w[0]*cy + w[2]*sy, wz = st.z - w[0]*sy + w[2]*cy;
+        V.push(wx, st.y + w[1], wz, col[0], col[1], col[2], dir, col === GOLDC ? 3 : 0, shade);
+      }
+      I.push(base, base+1, base+2, base, base+2, base+3);
+    }
+  };
+  const t = st.t, sit = st.mode === 2, run = st.moving;
+  const legSwing = run ? Math.sin(t * (st.mode === 3 ? 22 : 13)) * 0.7 : 0;
+  const bodyPitch = sit ? -0.5 : 0, BP = [0, 0.35, -0.3];
+  const dirOf = (fn) => (p, isN) => { if (!isN) return fn(p); const o = fn([0,0,0]), q = fn(p); const d = [q[0]-o[0], q[1]-o[1], q[2]-o[2]]; return [d[0]*cy + d[2]*sy, d[1], -d[0]*sy + d[2]*cy]; };
+  const bodyXf = (extra) => dirOf((p) => rotX(extra ? extra(p) : p, bodyPitch, BP));
+  const bob = run ? Math.abs(Math.sin(t * 13)) * 0.04 : 0;
+  const B = (p) => [p[0], p[1] + bob, p[2]];
+  part([0,0.55,0], [0.19,0.17,0.38], FUR, bodyXf(B));
+  part([0,0.8,0.44], [0.18,0.17,0.17], FUR, bodyXf(B));
+  part([0,0.73,0.65], [0.1,0.08,0.08], FUR_L, bodyXf(B));
+  part([0,0.78,0.735], [0.045,0.035,0.012], DARK, bodyXf(B));
+  part([0.09,0.87,0.612], [0.035,0.035,0.01], DARK, bodyXf(B));
+  part([-0.09,0.87,0.612], [0.035,0.035,0.01], DARK, bodyXf(B));
+  const earFlop = run ? Math.sin(t * 13) * 0.25 : 0;
+  part([0.15,0.86,0.42], [0.05,0.12,0.06], FUR_D, bodyXf((p)=>B(rotX(p, earFlop, [0,0.96,0.42]))));
+  part([-0.15,0.86,0.42], [0.05,0.12,0.06], FUR_D, bodyXf((p)=>B(rotX(p, earFlop, [0,0.96,0.42]))));
+  part([0,0.68,0.29], [0.2,0.05,0.05], RED, bodyXf(B));
+  part([0,0.62,0.355], [0.04,0.04,0.015], GOLDC, bodyXf(B));
+  const wag = Math.sin(t * (st.mode === 2 ? 16 : 9)) * 0.6;
+  part([0,0.7,-0.5], [0.045,0.045,0.15], FUR, bodyXf((p)=>B(rotY(rotX(p, -0.7, [0,0.66,-0.36]), wag, [0,0.66,-0.36]))));
+  if (st.saddle) {
+    part([0,0.73,-0.02], [0.21,0.02,0.24], SADDLE, bodyXf(B));
+    part([0,0.6,-0.02], [0.215,0.13,0.05], SADDLE, bodyXf(B));
+  }
+  if (sit) {
+    part([0.1,0.27,0.3], [0.06,0.27,0.06], FUR, dirOf((p)=>p));
+    part([-0.1,0.27,0.3], [0.06,0.27,0.06], FUR, dirOf((p)=>p));
+    part([0.15,0.1,-0.22], [0.07,0.1,0.14], FUR, dirOf((p)=>p));
+    part([-0.15,0.1,-0.22], [0.07,0.1,0.14], FUR, dirOf((p)=>p));
+  } else {
+    const legs = [[0.11,0.26,1],[-0.11,0.26,-1],[0.11,-0.26,-1],[-0.11,-0.26,1]];
+    for (const [lx, lz, ph] of legs) part([lx,0.2,lz], [0.06,0.2,0.06], FUR, dirOf((p)=>rotX(p, legSwing * ph, [0,0.4,lz])));
+  }
+  return { V: new Float32Array(V), I: new Uint32Array(I) };
+}
+
+// ---------- blocks & helpers ----------
+const BLOCK = {
+  1: ['Grass', '#5d9a3c'], 2: ['Dirt', '#87613f'], 3: ['Stone', '#80808a'], 5: ['Log', '#664729'], 6: ['Leaves', '#428533'],
+  7: ['Planks', '#bd915a'], 8: ['Stone bricks', '#78787a'], 9: ['Cobblestone', '#999791'], 10: ['Gold block', '#ffd673'],
+  11: ['Obsidian', '#2a1f45'], 12: ['Sand', '#dbcc94'], 17: ['Coal ore', '#2b2b2e'], 18: ['Iron ore', '#dba880'],
+  19: ['Gold ore', '#ffd933'], 20: ['Diamond ore', '#59f2f2'], 23: ['Red wool', '#cc3333'], 24: ['Orange wool', '#ed8026'],
+  25: ['Yellow wool', '#f7d933'], 26: ['Lime wool', '#73cc33'], 27: ['Blue wool', '#3359d9'], 28: ['Purple wool', '#8c40bf'],
+  29: ['White wool', '#ebebe6'], 30: ['Black wool', '#1f1f24'], 31: ['Gray block', '#808080'],
+};
+const blockCol = (id) => (BLOCK[id] || ['?', '#888'])[1];
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem('cbg:' + k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem('cbg:' + k, JSON.stringify(v)); } catch (e) {} },
+};
+const fmtTime = (s) => { const m = Math.floor(s / 60), r = s - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
+const clamp10 = (v) => Math.max(1, Math.min(10, Math.round(v)));
+let worldDirty = false;
+function setBlock(x, y, z, id) { E.set_block(x, y, z, id); worldDirty = true; }
+function uploadWorld() {
+  nIdx = E.build_mesh(); nOpaque = E.opaque_index_count();
+  const nv = E.vert_count(), m = E.memory.buffer;
+  gl.bindVertexArray(world.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, world.vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(m, E.verts_ptr(), nv * 9), gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, world.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m, E.index_ptr(), nIdx), gl.DYNAMIC_DRAW);
+  gl.bindVertexArray(null);
+}
+
+// ---------- bigger lobby + race track ----------
+// Rounded-square distance from the island centre: straights at 26 blocks out, corners rounded.
+const TRACK_IN = 23.5, TRACK_OUT = 28.5, LAND_OUT = 30.6;
+function ringDist(x, z) {
+  const dx = Math.abs(x + 0.5 - 32), dz = Math.abs(z + 0.5 - 32);
+  return (dx > 16 && dz > 16) ? 16 + Math.hypot(dx - 16, dz - 16) : Math.max(dx, dz);
+}
+function onTrack(x, z) { const r = ringDist(Math.floor(x), Math.floor(z)); return r >= TRACK_IN && r < TRACK_OUT; }
+function buildLobbyExtras() {
+  for (let x = 0; x < 64; x++) for (let z = 0; z < 64; z++) {
+    const r = ringDist(x, z);
+    const isTrack = r >= TRACK_IN && r < TRACK_OUT;
+    if (r >= 22.5) for (let y = 17; y < 40; y++) E.set_block(x, y, z, 0); // flatten the outer ring
+    if (r >= 22.5 || !E.get_block(x, 16, z)) {
+      for (let y = 12; y <= 15; y++) if (!E.get_block(x, y, z)) E.set_block(x, y, z, y < 14 ? 3 : 2);
+      let top = 1;
+      if (isTrack) {
+        const curb = r < TRACK_IN + 1 || r >= TRACK_OUT - 1;
+        top = curb ? (((x + z) >> 1) % 2 ? 23 : 29) : 31;
+      }
+      E.set_block(x, 16, z, top);
+    }
+  }
+  // checkered start / finish line across the north straight
+  for (let z = 4; z <= 8; z++) for (const x of [31, 32]) E.set_block(x, 16, z, (x + z) % 2 ? 30 : 29);
+  // start arch
+  for (const z of [3, 9]) for (let y = 17; y <= 21; y++) for (const x of [31, 32]) E.set_block(x, y, z, 8);
+  for (let z = 3; z <= 9; z++) for (const x of [31, 32]) E.set_block(x, 22, z, (x + z) % 2 ? 10 : 30);
+  // hurdles to jump while riding (or steer around)
+  for (let x = 55; x <= 57; x++) E.set_block(x, 17, 30, 7);
+  for (let x = 6; x <= 8; x++) E.set_block(x, 17, 34, 7);
+  for (let z = 56; z <= 58; z++) E.set_block(36, 17, z, 7);
+  buildSkyIslands();
+  // trees in the new corners, inside the track
+  for (const [tx, tz] of [[12, 12], [51, 12], [12, 51], [51, 51]]) {
+    for (let y = 17; y <= 20; y++) E.set_block(tx, y, tz, 5);
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let y = 20; y <= 22; y++) {
+      if (Math.abs(dx) + Math.abs(dz) + (y - 20) > 3 || (dx === 0 && dz === 0 && y < 21)) continue;
+      if (!E.get_block(tx + dx, y, tz + dz)) E.set_block(tx + dx, y, tz + dz, 6);
+    }
+  }
+}
+// ---------- sky islands: a parkour climb along each edge to a tiny floating island in each corner ----------
+// Base route is the north-west corner; the other three are the same route turned 90° at a time.
+const SKY_HOPS = [[1, 17, 25], [1, 18, 22], [2, 18, 19], [2, 19, 16], [1, 19, 13], [1, 20, 10], [1, 21, 7]];
+const SKY_TOP = 21; // island floor height (you stand at y = 22)
+const SKY_NAMES = ['North-west', 'North-east', 'South-east', 'South-west'];
+const SKY_COLS = [24, 27, 26, 28]; // orange, blue, lime, purple hops
+const turn = (x, z, k) => { for (let i = 0; i < k; i++) [x, z] = [63 - z, x]; return [x, z]; };
+const skyIslands = [];
+function buildSkyIslands() {
+  skyIslands.length = 0;
+  for (let k = 0; k < 4; k++) {
+    const set = (x, y, z, id) => { const [tx, tz] = turn(x, z, k); E.set_block(tx, y, tz, id); };
+    // start pad on the ground, then the hops
+    set(1, 16, 28, SKY_COLS[k]); set(2, 16, 28, SKY_COLS[k]);
+    for (const [x, y, z] of SKY_HOPS) set(x, y, z, SKY_COLS[k]);
+    // the island: 5x5 grass with rounded corners, a dirt belly, a little tree and a gold block
+    for (let x = 0; x <= 4; x++) for (let z = 0; z <= 4; z++) {
+      const edge = (x === 0 || x === 4) && (z === 0 || z === 4);
+      if (edge) continue;
+      set(x, SKY_TOP, z, 1); set(x, SKY_TOP - 1, z, 2);
+      if (x >= 1 && x <= 3 && z >= 1 && z <= 3) set(x, SKY_TOP - 2, z, 2);
+      if (x === 2 && z === 2) set(x, SKY_TOP - 3, z, 3);
+    }
+    set(2, SKY_TOP, 2, 10);
+    for (let y = SKY_TOP + 1; y <= SKY_TOP + 3; y++) set(0 + 1, y, 3, 5);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const [lx, lz] = [1 + dx, 3 + dz]; if (lx >= 0 && lz >= 0) set(lx, SKY_TOP + 4, lz, 6); }
+    set(1, SKY_TOP + 5, 3, 6);
+    const [cx, cz] = turn(2, 2, k);
+    skyIslands.push({ name: SKY_NAMES[k], x: cx + 0.5, z: cz + 0.5 });
+  }
+}
+const skyProg = { found: new Set(store.get('skyFound') || []) };
+function skyStep() {
+  if (!E.player_on_ground() || E.player_y() < SKY_TOP + 0.5) return;
+  const x = E.player_x(), z = E.player_z();
+  skyIslands.forEach((isl, i) => {
+    if (Math.abs(x - isl.x) > 2.6 || Math.abs(z - isl.z) > 2.6 || skyProg.found.has(i)) return;
+    skyProg.found.add(i); store.set('skyFound', [...skyProg.found]);
+    const n = skyProg.found.size;
+    if (n === 4) banner('ALL 4 SKY ISLANDS!', 'You climbed every one. Parkour pro!', '#ffd36b', 3500);
+    else banner('SKY ISLAND FOUND', `${isl.name} island · ${n} of 4`, '#6fbf4a', 2600);
+  });
+}
+
+// lap timing: only counts while riding Nugget
+const race = { on: false, t: 0, seen: new Set(), last: null, best: store.get('raceBest'), prevX: null, nag: 0 };
+function trackSide(x, z) { const dx = x - 32, dz = z - 32; return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'E' : 'W') : (dz > 0 ? 'S' : 'N'); }
+function raceStep(dt) {
+  const x = E.player_x(), z = E.player_z(), riding = E.is_riding();
+  race.nag -= dt;
+  if (race.on) race.t += dt;
+  if (onTrack(x, z)) race.seen.add(trackSide(x, z));
+  const crossed = race.prevX !== null && z > 3 && z < 10 && (race.prevX < 32.5) !== (x < 32.5);
+  race.prevX = x;
+  if (!crossed) return;
+  if (!riding) { if (race.nag <= 0) { say('Hop on <b>Nugget</b> (F) to race the track!', 4000); race.nag = 6; } race.on = false; return; }
+  if (race.on && race.seen.has('E') && race.seen.has('S') && race.seen.has('W')) {
+    race.last = race.t;
+    const rec = race.best == null || race.t < race.best;
+    if (rec) { race.best = race.t; store.set('raceBest', race.t); }
+    banner(rec ? 'NEW BEST LAP!' : 'LAP COMPLETE', `${fmtTime(race.t)}${rec ? '' : ' · best ' + fmtTime(race.best)}`, rec ? '#ffd36b' : '#6fbf4a', 2600);
+  } else if (!race.on) {
+    banner('GO, NUGGET, GO!', 'Lap timer started. Go all the way around!', '#ffd36b', 1800);
+  }
+  race.on = true; race.t = 0; race.seen = new Set(['N']);
+}
+
+// ---------- HUD ----------
+const PORTALS = [
+  { name: 'Survival', key: 'survival', mode: 1, note: 'mine · craft · find a diamond', color: 'var(--p0)', pos: [53.5, 22.6, 32.5] },
+  { name: 'Build Battle', key: 'build', mode: 2, note: '3 minutes · one theme', color: 'var(--p1)', pos: [11.5, 22.6, 32.5] },
+  { name: 'Parkour', key: 'parkour', mode: 3, note: 'race to the gold pad', color: 'var(--p2)', pos: [32.5, 22.6, 53.5] },
+  { name: 'Block Wars', key: 'wars', mode: 4, note: 'survive 3 waves', color: 'var(--p3)', pos: [32.5, 22.6, 11.5] },
+];
+const chatEl = $('chat');
+function say(html, ms = 9000) {
+  const d = document.createElement('div'); d.innerHTML = html; chatEl.appendChild(d);
+  while (chatEl.children.length > 7) chatEl.firstChild.remove();
+  setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, ms);
+}
+let warnText = '', warnAt = 0;
+function warn(msg) { const n = performance.now(); if (msg !== warnText || n - warnAt > 3000) { say(msg, 3500); warnText = msg; warnAt = n; } }
+let bannerT = 0;
+function banner(title, text, color, ms = 2600) {
+  $('toast').hidden = false; $('toastT').textContent = title; $('toastT').style.color = color || 'var(--gold)';
+  $('toastP').textContent = text; $('toastBar').parentElement.hidden = true; bannerT = ms / 1000;
+}
+const labels = $('labels');
+const portalLabels = PORTALS.map((p) => { const el = document.createElement('div'); el.className = 'label'; el.style.color = p.color; el.innerHTML = `${p.name.toUpperCase()}<small>walk in to join</small>`; labels.appendChild(el); return el; });
+const trackLabel = document.createElement('div'); trackLabel.className = 'label'; trackLabel.style.color = 'var(--gold)'; trackLabel.innerHTML = 'NUGGET RACEWAY<small>ride through to start a lap</small>'; labels.appendChild(trackLabel);
+const skyLabels = [0, 1, 2, 3].map(() => { const el = document.createElement('div'); el.className = 'label'; el.style.color = '#9fe07a'; el.innerHTML = 'SKY ISLAND<small>climb the blocks</small>'; labels.appendChild(el); return el; });
+const dogLabel = document.createElement('div'); dogLabel.className = 'label dog'; dogLabel.textContent = 'Nugget'; labels.appendChild(dogLabel);
+
+function iconSVG(kind) {
+  const px = {
+    compass: ['....####....','..##rrrr##..','.#rrrrrrrr#.','.#rrr##rrr#.','#rrr#ww#rrr#','#rr#wwww#rr#','#rr#wwww#rr#','#rrr#ww#rrr#','.#rrr##rrr#.','.#rrrrrrrr#.','..##rrrr##..','....####....'],
+    whistle: ['............','............','.....yyyyy..','....yYYYYYy.','...yYyyyyYy.','..yYyy..yYy.','.yYy.....yy.','yYy.........','yy..........','............','............','............'],
+    saddle: ['............','..bb......bb','..bBb....bBb','..bBBbbbbBBb','..bBBBBBBBBb','...bBBBBBBb.','....bbbbbb..','.....s..s...','.....s..s...','....gg..gg..','............','............'],
+    bed: ['............','............','ww..........','wwrrrrrrrrrr','wwrrrrrrrrrr','bbbbbbbbbbbb','b..........b','b..........b','............','............','............','............'],
+    pick: ['............','..cccccccc..','.cC..BB..Cc.','.C...BB...C.','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....BB.....','.....bb.....','............'],
+    snow: ['............','....wwww....','...wwwwww...','..wwwwwwYw..','..wwwwwwYw..','..wwwwwYYw..','..wwwwYYYw..','...wYYYYw...','....wwww....','............','............','............'],
+  }[kind];
+  const pal = { '#': '#3a2a12', r: '#c9a24a', w: '#e8e4d8', y: '#9a8f78', Y: '#bdb7a6', b: '#4a2814', B: '#8a4a22', s: '#777', g: '#d8b44a', c: '#b8c0c8', C: '#6c747c' };
+  let r = '';
+  px.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`; }));
+  return `<svg class="ic" viewBox="0 0 12 12" shape-rendering="crispEdges">${r}</svg>`;
+}
+
+// ---------- hotbar ----------
+const hotbar = $('hotbar');
+let SLOTS = [], selected = 0;
+function slotHTML(s) {
+  let h = `<span class="k">${s.key}</span>`;
+  if (s.block) h += `<span class="blk" style="background:${blockCol(s.block)}"></span>`;
+  else if (s.icon) h += iconSVG(s.icon);
+  if (s.count != null) h += `<span class="n">${s.count}</span>`;
+  if (s.tip) h += `<span class="tip">${s.tip}</span>`;
+  return h;
+}
+function setHotbar(slots) {
+  const all = slots.slice(0, 9); while (all.length < 9) all.push({});
+  SLOTS = all.map((s, i) => ({ ...s, key: String(i + 1) }));
+  hotbar.innerHTML = '';
+  SLOTS.forEach((s, i) => {
+    const b = document.createElement('button'); b.className = 'slot';
+    b.innerHTML = b._h = slotHTML(s); b.setAttribute('aria-label', s.tip || 'Empty slot ' + s.key);
+    b.addEventListener('click', (e) => { e.stopPropagation(); pick(i); });
+    hotbar.appendChild(b);
+  });
+  pick(Math.min(selected, 8), true);
+}
+function refreshHotbar() {
+  [...hotbar.children].forEach((b, i) => { const h = slotHTML(SLOTS[i]); if (b._h !== h) { b.innerHTML = b._h = h; b.setAttribute('aria-label', SLOTS[i].tip || 'Empty slot ' + SLOTS[i].key); } });
+}
+function pick(i, quiet) {
+  selected = i; [...hotbar.children].forEach((c, j) => c.classList.toggle('on', j === i));
+  if (!quiet && SLOTS[i] && SLOTS[i].act) SLOTS[i].act();
+}
+const LOBBY_SLOTS = [
+  { tip: 'Game menu (E)', icon: 'compass', act: () => openMenu() },
+  { tip: 'Whistle for Nugget (Q)', icon: 'whistle', act: () => whistle() },
+  { tip: 'Ride Nugget (F)', icon: 'saddle', act: () => ride() },
+  {}, {}, {}, {}, {},
+  { tip: 'Back to spawn (B)', icon: 'bed', act: () => { E.respawn_player(); yaw = 0; pitch = 0; say('Back at spawn.'); } },
+];
+
+// ---------- dialogs ----------
+const LOBBY_BOARD = $('board').innerHTML;
+let lastBoard = '';
+function setBoard(html) { if (html !== lastBoard) { $('board').innerHTML = html; lastBoard = html; } }
+const row = (a, b, cls = '') => `<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`;
+const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('start').hidden;
+function releaseMouse() { try { document.exitPointerLock(); } catch (e) {} }
+function lockMouse() { if (coarse) return; try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+
+const gamesEl = $('games');
+PORTALS.forEach((p, i) => {
+  const b = document.createElement('button'); b.className = 'game';
+  b.innerHTML = `<i style="background:${p.color}"></i><span>${p.name}</span><em>${p.note}</em>`;
+  b.addEventListener('click', () => { closeMenu(); startJoin(i); lockMouse(); });
+  gamesEl.appendChild(b);
+});
+function openMenu() {
+  const inGame = scene !== 'lobby';
+  $('menuGame').hidden = !inGame; $('menuPick').hidden = inGame;
+  if (inGame) $('menuTitle').textContent = GAMES[scene].title + ' · PAUSED';
+  $('menuFinish').hidden = scene !== 'build';
+  $('menuClose').textContent = inGame ? 'RESUME' : 'BACK TO LOBBY';
+  $('menu').hidden = false; releaseMouse();
+}
+function closeMenu() { $('menu').hidden = true; }
+$('menuClose').addEventListener('click', () => { closeMenu(); lockMouse(); });
+$('menuFinish').addEventListener('click', () => { closeMenu(); if (scene === 'build' && G && !G.over) Build.finish(); });
+$('menuRestart').addEventListener('click', () => { closeMenu(); loadGame(gameIdx); lockMouse(); });
+$('menuLobby').addEventListener('click', () => { closeMenu(); toLobby(); lockMouse(); });
+function showResult(title, color, sub, lines) {
+  if (G) G.over = true;
+  $('resT').textContent = title; $('resT').style.color = color;
+  $('resB').innerHTML = (sub ? `<p>${sub}</p>` : '') + lines.map(([a, b]) => `<div class="line"><span>${a}</span><span>${b}</span></div>`).join('');
+  $('result').hidden = false; $('toast').hidden = true; releaseMouse();
+}
+$('resAgain').addEventListener('click', () => { $('result').hidden = true; loadGame(gameIdx); lockMouse(); });
+$('resLobby').addEventListener('click', () => { $('result').hidden = true; toLobby(); lockMouse(); });
+
+let lastWhistle = 0;
+function whistle() {
+  if (scene !== 'lobby') return;
+  if (E.is_riding()) { say('Nugget is already under you!'); return; }
+  E.dog_call(); const now = performance.now();
+  if (now - lastWhistle > 1500) say('<b>You</b> whistled. <b>Nugget</b> is on the way!');
+  lastWhistle = now;
+}
+function ride() {
+  if (scene !== 'lobby') return;
+  const r = E.toggle_ride();
+  if (r === 1) { say('You hopped on <b>Nugget</b>. Hold <b>right-click</b> for TURBO, Space jumps 3 blocks!'); say('Ride through the checkered arch to race a lap!', 6000); }
+  else if (r === 0) { say('You hopped off. Nugget sits and wags.'); race.on = false; }
+  else { say('Get closer to Nugget to ride. Press Q to whistle him over.'); }
+}
+
+// ---------- shared game helpers ----------
+let scene = 'lobby', G = null, gameIdx = -1, curEye = [32.5, 18.6, 24.5], curDir = [0, 0, 1];
+function aim(reach) {
+  const id = E.raycast(curEye[0], curEye[1], curEye[2], curDir[0], curDir[1], curDir[2], reach);
+  if (!id) return null;
+  return { id, x: E.hit_x(), y: E.hit_y(), z: E.hit_z(), nx: E.hit_nx(), ny: E.hit_ny(), nz: E.hit_nz() };
+}
+function tryPlace(id, allow) {
+  const h = aim(6); if (!h || !id) return null;
+  const x = h.x + h.nx, y = h.y + h.ny, z = h.z + h.nz;
+  if (x < 0 || x > 63 || z < 0 || z > 63 || y < 0 || y > 39) return null;
+  const cur = E.get_block(x, y, z); if (cur && cur !== 4) return null;
+  if (allow && !allow(x, y, z)) return null;
+  if (E.player_overlaps(x, y, z)) return null;
+  setBlock(x, y, z, id); return { x, y, z };
+}
+
+// ---------- SURVIVAL ----------
+const TOOLS = ['Bare hands', 'Wooden pickaxe', 'Stone pickaxe', 'Iron pickaxe'];
+const TOOL_SPEED = [1, 2, 3, 4.2];
+const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7: [1, 0], 3: [1.8, 1], 9: [1.7, 1], 8: [1.8, 1], 17: [2, 1], 18: [2.6, 2], 19: [3, 3], 20: [3.2, 3], 10: [2.4, 2], 11: [6, 3] };
+const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'iron', 19: 'gold', 20: 'diamond' };
+const ITEM = { coal: 'Coal', iron: 'Iron', gold: 'Gold', diamond: 'Diamond' };
+const RECIPES = [
+  { name: '4 Planks', need: { 5: 1 }, block: 7, make: () => Survival.add(7, 4) },
+  { name: 'Wooden pickaxe', need: { 7: 3 }, tool: 1 },
+  { name: 'Stone pickaxe', need: { 9: 3, 7: 2 }, tool: 2 },
+  { name: 'Iron pickaxe', need: { iron: 3, 7: 2 }, tool: 3 },
+  { name: 'Gold block', need: { gold: 4 }, block: 10, make: () => Survival.add(10, 1) },
+];
+const have = (k) => isNaN(k) ? G.items[k] : (G.inv[k] || 0);
+const canCraft = (r) => !(r.tool && G.tool >= r.tool) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
+const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : BLOCK[k][0]}`).join(' + ');
+function openCraft() { if (scene !== 'survival' || !G || G.over) return; renderCraft(); $('craft').hidden = false; releaseMouse(); }
+function closeCraft() { $('craft').hidden = true; }
+$('craftClose').addEventListener('click', () => { closeCraft(); lockMouse(); });
+function renderCraft() {
+  const el = $('recipes'); el.innerHTML = '';
+  RECIPES.forEach((r) => {
+    const b = document.createElement('button'); b.className = 'game';
+    const done = r.tool && G.tool >= r.tool;
+    b.disabled = !canCraft(r);
+    b.innerHTML = `<i style="background:${r.tool ? '#b8c0c8' : blockCol(r.block)}"></i><span>${r.name}</span><em>${done ? 'crafted ✓' : needText(r)}</em>`;
+    b.addEventListener('click', () => {
+      if (!canCraft(r)) return;
+      for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
+      if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); } else r.make();
+      Survival.hot(); renderCraft();
+    });
+    el.appendChild(b);
+  });
+}
+const GOALS = [
+  ['Craft a wooden pickaxe', () => G.tool >= 1],
+  ['Craft a stone pickaxe', () => G.tool >= 2],
+  ['Mine 3 iron', () => G.ironMined >= 3],
+  ['Craft an iron pickaxe', () => G.tool >= 3],
+  ['Mine a diamond', () => G.items.diamond >= 1],
+];
+const Survival = {
+  title: 'SURVIVAL', yaw: 0, outline: true, use: 'MINE',
+  init() {
+    G = { t: 0, inv: {}, order: [], items: { coal: 0, iron: 0, gold: 0, diamond: 0 }, ironMined: 0, tool: 0, mine: null, done: GOALS.map(() => false) };
+    this.hot();
+    say('<b>Survival</b>: hold click on a tree to get logs, then press <b>C</b> to craft.', 15000);
+    say('Craft better pickaxes, dig deep, and mine a <b>diamond</b> to win!', 15000);
+    say('<b>Right-click</b> places the block in your hand.', 15000);
+  },
+  add(id, n) { if (!G.order.includes(id)) G.order.push(id); G.inv[id] = (G.inv[id] || 0) + n; this.hot(); },
+  hot() {
+    G.order = G.order.filter((id) => G.inv[id] > 0);
+    const s = G.order.slice(0, 8).map((id) => ({ block: id, count: G.inv[id], tip: BLOCK[id][0] }));
+    while (s.length < 8) s.push({});
+    s.push({ icon: 'pick', tip: 'Crafting (C)', act: () => openCraft() });
+    setHotbar(s);
+  },
+  primary(dt, held) {
+    $('minebar').hidden = true;
+    if (!held) { G.mine = null; return; }
+    const h = aim(5); if (!h) { G.mine = null; return; }
+    if (h.y === 0) return warn('That is the bottom of the world. It will not break.');
+    const hd = HARD[h.id] || [1, 0];
+    if (G.tool < hd[1]) { G.mine = null; return warn(`Too hard! You need a <b>${TOOLS[hd[1]]}</b>. Press <b>C</b> to craft.`); }
+    const key = h.x + ',' + h.y + ',' + h.z;
+    if (!G.mine || G.mine.key !== key) G.mine = { key, t: 0, need: hd[0] / TOOL_SPEED[G.tool] };
+    G.mine.t += dt;
+    $('minebar').hidden = false; $('minebar').firstChild.style.width = Math.min(100, G.mine.t / G.mine.need * 100) + '%';
+    if (G.mine.t < G.mine.need) return;
+    setBlock(h.x, h.y, h.z, 0); G.mine = null; $('minebar').hidden = true;
+    const d = DROP[h.id] ?? h.id;
+    if (typeof d === 'string') { G.items[d]++; if (d === 'iron') G.ironMined++; say(`+1 <b>${ITEM[d]}</b>`, 3500); }
+    else this.add(d, 1);
+  },
+  secondary() {
+    const id = G.order[selected];
+    if (selected > 7 || !id || !G.inv[id]) return warn('Pick a block slot (1–8) to place it.');
+    if (tryPlace(id)) { G.inv[id]--; this.hot(); }
+  },
+  update(dt) {
+    G.t += dt;
+    GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) banner('GOAL COMPLETE', name, '#6fbf4a', 2400); } });
+    if (G.done[GOALS.length - 1]) {
+      const best = store.get('survivalBest'); const rec = best == null || G.t < best; if (rec) store.set('survivalBest', G.t);
+      showResult('YOU FOUND A DIAMOND!', '#59f2f2', 'You beat Survival.', [
+        ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')], ['Best', fmtTime(rec ? G.t : best)],
+        ['Coal mined', G.items.coal], ['Iron mined', G.ironMined], ['Gold held', G.items.gold],
+      ]);
+    }
+  },
+  board() {
+    return `<h2>SURVIVAL</h2>${row('Time', fmtTime(G.t))}${row('Tool', TOOLS[G.tool])}<hr>`
+      + GOALS.map(([n], i) => row((G.done[i] ? '✓ ' : '☐ ') + n, '', G.done[i] ? 'done' : '')).join('')
+      + `<hr>${row('Coal', G.items.coal)}${row('Iron', G.items.iron)}${row('Gold', G.items.gold)}${row('Diamond', G.items.diamond)}`;
+  },
+};
+
+// ---------- BUILD BATTLE ----------
+const THEMES = ['Treehouse', 'Rocket ship', 'Castle', 'Giant cake', 'Dragon', 'Robot', 'Lighthouse', 'Pirate ship', 'Rainbow bridge', 'Snowman', 'Volcano', 'Dream house', 'Ice cream cone', 'Race car', 'Haunted house', 'Giant mushroom', 'Nugget statue', 'Hot air balloon'];
+const PAL = [[23, 24, 25, 26, 27, 28, 29, 30, 7], [1, 3, 8, 9, 5, 6, 12, 10, 11]];
+const inPlot = (x, y, z) => Math.hypot(x + 0.5 - 32, z + 0.5 - 32) <= 18.5 && y >= 17 && y <= 38;
+const Build = {
+  title: 'BUILD BATTLE', yaw: 0, outline: true, use: 'BREAK',
+  init() {
+    const base = new Set();
+    for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) for (let y = 17; y <= 38; y++) if (inPlot(x, y, z) && E.get_block(x, y, z)) base.add(x + ',' + y + ',' + z);
+    G = { t: 180, theme: THEMES[Math.floor(Math.random() * THEMES.length)], page: 0, base, rep: 0 };
+    this.hot();
+    banner('Theme: ' + G.theme, 'You have 3 minutes. Build inside the stone ring!', '#33d9cc', 4500);
+    say(`<b>Build Battle</b> theme: <b>${G.theme}</b>`, 15000);
+    say('<b>Right-click</b> to place · <b>click</b> to break · <b>R</b> swaps palettes.', 15000);
+    say('Hold <b>Space</b> to fly up. Done early? Menu (E) → Finish &amp; judge.', 15000);
+  },
+  hot() { setHotbar(PAL[G.page].map((id) => ({ block: id, tip: BLOCK[id][0] }))); },
+  page() { G.page = 1 - G.page; this.hot(); say(G.page ? 'Palette 2: nature & stone' : 'Palette 1: wool colors', 2500); },
+  primary(dt, held, pressed) {
+    if (!held) { G.rep = 0; return; }
+    G.rep -= dt; if (!pressed && G.rep > 0) return; G.rep = 0.2;
+    const h = aim(7); if (!h) return;
+    if (!inPlot(h.x, h.y, h.z)) return warn('You can only break blocks inside your plot.');
+    setBlock(h.x, h.y, h.z, 0);
+  },
+  secondary() { tryPlace(PAL[G.page][selected], (x, y, z) => inPlot(x, y, z) || (warn('Build inside the stone ring!'), false)); },
+  update(dt) {
+    G.t -= dt;
+    if ((keys.Space || touchJump) && E.player_y() < 36) E.player_push(0, 6, 0);
+    if (G.t <= 0) this.finish();
+  },
+  finish() {
+    let n = 0, maxY = 16, minX = 99, maxX = -1, minZ = 99, maxZ = -1; const ids = new Set();
+    for (let x = 13; x <= 51; x++) for (let z = 13; z <= 51; z++) for (let y = 17; y <= 38; y++) {
+      if (!inPlot(x, y, z) || G.base.has(x + ',' + y + ',' + z)) continue;
+      const b = E.get_block(x, y, z); if (!b) continue;
+      n++; ids.add(b); maxY = Math.max(maxY, y); minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    }
+    const k = ids.size, h = maxY - 16, span = n ? Math.max(maxX - minX, maxZ - minZ) + 1 : 0;
+    const s1 = n ? clamp10(1 + Math.sqrt(n) * 0.9) : 1;
+    const s2 = n ? clamp10(1 + k * 1.3 + (k >= 3 ? 1 : 0)) : 1;
+    const s3 = n ? clamp10(1 + h * 0.8 + Math.min(3, span / 4)) : 1;
+    const total = s1 + s2 + s3, best = store.get('buildBest'), rec = best == null || total > best;
+    if (rec) store.set('buildBest', total);
+    const verdict = !n ? 'The judges could not find your build!' : total >= 26 ? 'LEGENDARY! The judges are speechless.' : total >= 20 ? 'Amazing build!' : total >= 13 ? 'Nice work! Keep going bigger.' : 'A good start. Try more blocks and colors!';
+    showResult('JUDGING: ' + G.theme.toUpperCase(), '#33d9cc', verdict, [
+      ['Blocks placed', n], ['Colors / types', k], ['Height', h + ' blocks'],
+      ['Judge Brick (size)', s1 + '/10'], ['Judge Pixel (color)', s2 + '/10'], ['Judge Skye (shape)', s3 + '/10'],
+      ['TOTAL', total + '/30' + (rec ? ' (new best!)' : ' · best ' + best)],
+    ]);
+  },
+  board() {
+    return `<h2>BUILD BATTLE</h2><div class="big">${G.theme}</div>${row('Time left', fmtTime(Math.max(0, G.t)))}${row('Palette', (G.page + 1) + ' of 2 (R)')}<hr>${row('Click', 'break')}${row('Right-click', 'place')}${row('Space', 'fly up')}`;
+  },
+};
+
+// ---------- PARKOUR ----------
+const Parkour = {
+  title: 'PARKOUR', yaw: 0, outline: false, use: '',
+  init() {
+    G = { t: 0, started: false, done: false, cps: [], falls: 0, start: [E.player_x(), E.player_y(), E.player_z()], best: store.get('parkourBest') };
+    setHotbar([{ icon: 'bed', tip: 'Back to checkpoint', act: () => { E.respawn_player(); } }]);
+    say('<b>Parkour</b>: jump across the floating blocks to the <b>gold pad</b>.', 15000);
+    say('Green pads are checkpoints. The clock starts when you leave the start pad. Sprint with Shift!', 15000);
+  },
+  update(dt, ret) {
+    const x = E.player_x(), y = E.player_y(), z = E.player_z();
+    if (!G.started && Math.hypot(x - G.start[0], z - G.start[2]) > 1.8) { G.started = true; say('The clock is running!', 3000); }
+    if (G.started) G.t += dt;
+    if (ret === -1) { G.falls++; say(G.cps.length ? 'Splat! Back to your checkpoint.' : 'Splat! Back to the start.', 2500); }
+    if (!E.player_on_ground()) return;
+    const bb = E.block_below();
+    if (bb === 22 && [G.start, ...G.cps].every((p) => Math.hypot(p[0] - x, p[1] - y, p[2] - z) > 4)) {
+      G.cps.push([x, y, z]); E.set_spawn(x, y, z);
+      banner(`CHECKPOINT ${G.cps.length}`, 'You will respawn here if you fall.', '#6fbf4a', 1800);
+    }
+    if (bb === 21 && G.started) {
+      const rec = G.best == null || G.t < G.best; if (rec) store.set('parkourBest', G.t);
+      showResult('COURSE COMPLETE!', '#ff8f26', rec ? 'New personal best!' : 'Nice run!', [
+        ['Time', fmtTime(G.t)], ['Best', fmtTime(rec ? G.t : G.best)], ['Falls', G.falls], ['Checkpoints', G.cps.length],
+      ]);
+    }
+  },
+  board() {
+    return `<h2>PARKOUR</h2><div class="big">${fmtTime(G.t)}</div>${row('Checkpoints', G.cps.length)}${row('Falls', G.falls)}${row('Best', G.best == null ? '—' : fmtTime(G.best))}<hr>${row('Goal', 'gold pad')}`;
+  },
+};
+
+// ---------- BLOCK WARS ----------
+const CORNERS = [[15.5, 15.5], [49.5, 15.5], [15.5, 49.5], [49.5, 49.5]];
+const WAVES = [3, 5, 7];
+const Wars = {
+  title: 'BLOCK WARS', yaw: 0, use: 'USE',
+  get outline() { return selected === 2; },
+  init() {
+    G = { hp: 10, bots: [], balls: [], queue: [], wave: 0, state: 'wait', pause: 3.5, kills: 0, bricks: 24, placed: new Set(), cool: 0, regen: 0, t: 0 };
+    setHotbar([{ icon: 'snow', tip: 'Snowball blaster (click)' }, { block: 8, tip: 'Stone bricks (right-click)', count: G.bricks }, { icon: 'pick', tip: 'Pickaxe: hold click to mine (+1 brick)' }]);
+    G.mine = null;
+    banner('BLOCK WARS', 'Wave 1 starts in 3 seconds. Click to throw snowballs!', '#ff5280', 3200);
+    say('<b>Block Wars</b>: Blockers are coming! <b>Click</b> to throw snowballs.', 15000);
+    say('<b>Right-click</b> to build brick walls. Blockers smash walls, so keep moving!', 15000);
+    say('Press <b>3</b> for your <b>pickaxe</b>: hold click to mine blocks and get bricks back.', 15000);
+    say('Survive all 3 waves to win.', 15000);
+  },
+  hot() { SLOTS[1].count = G.bricks; refreshHotbar(); },
+  primary(dt, held) {
+    if (selected === 2) return this.mine(dt, held);
+    $('minebar').hidden = true; G.mine = null;
+    if (!held || G.cool > 0) return;
+    G.cool = 0.28;
+    G.balls.push({ x: curEye[0] + curDir[0] * 0.6, y: curEye[1] + curDir[1] * 0.6 - 0.1, z: curEye[2] + curDir[2] * 0.6, vx: curDir[0] * 30, vy: curDir[1] * 30 + 1.5, vz: curDir[2] * 30, t: 0 });
+  },
+  mine(dt, held) {
+    $('minebar').hidden = true;
+    if (!held) { G.mine = null; return; }
+    const h = aim(5); if (!h) { G.mine = null; return; }
+    if (h.y <= 16) { G.mine = null; return warn('The arena floor is too tough to mine.'); }
+    const key = h.x + ',' + h.y + ',' + h.z;
+    if (!G.mine || G.mine.key !== key) G.mine = { key, t: 0, need: G.placed.has(key) ? 0.35 : 0.8 };
+    G.mine.t += dt;
+    $('minebar').hidden = false; $('minebar').firstChild.style.width = Math.min(100, G.mine.t / G.mine.need * 100) + '%';
+    if (G.mine.t < G.mine.need) return;
+    setBlock(h.x, h.y, h.z, 0); G.placed.delete(key); G.mine = null; $('minebar').hidden = true;
+    G.bricks++; this.hot();
+  },
+  secondary() {
+    if (G.bricks <= 0) return warn('Out of bricks! You get 16 more after each wave.');
+    const p = tryPlace(8); if (p) { G.bricks--; G.placed.add(p.x + ',' + p.y + ',' + p.z); this.hot(); }
+  },
+  hurt(n, dx, dz) {
+    G.hp = Math.max(0, G.hp - n); G.regen = 0;
+    E.player_push(dx * 7, 5, dz * 7);
+    $('hurt').style.opacity = '1'; setTimeout(() => { $('hurt').style.opacity = '0'; }, 160);
+    if (G.hp <= 0) showResult('KNOCKED OUT!', '#ff5280', 'The Blockers got you. Try building walls and keep moving!', [['Wave reached', G.wave + ' of 3'], ['Blockers knocked out', G.kills], ['Time', fmtTime(G.t)]]);
+  },
+  startWave() {
+    G.wave++; G.state = 'fight';
+    const n = WAVES[G.wave - 1];
+    for (let i = 0; i < n; i++) G.queue.push({ delay: 0.3 + i * 0.9, boss: G.wave === 3 && i === n - 1 });
+    banner('WAVE ' + G.wave, G.wave === 3 ? 'The Big Blocker is coming!' : n + ' Blockers incoming!', '#ff5280', 2200);
+  },
+  spawn(boss) {
+    const c = CORNERS[Math.floor(Math.random() * 4)], x = c[0] + (Math.random() - 0.5) * 2, z = c[1] + (Math.random() - 0.5) * 2;
+    const y = Math.max(17, E.ground_at(x, 30, z));
+    G.bots.push({ x, y, z, vy: 0, kx: 0, kz: 0, hp: boss ? 8 : 2, max: boss ? 8 : 2, s: boss ? 1.5 : 1, boss, speed: boss ? 2.4 : 2.2 + G.wave * 0.35, yaw: 0, cool: 0.6, stuck: 0, hit: 0, ground: true, phase: Math.random() * 6 });
+  },
+  botStep(b, dt) {
+    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+    let dx = px - b.x, dz = pz - b.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+    b.yaw = Math.atan2(dx, dz); b.hit = Math.max(0, b.hit - dt); b.phase += dt * b.speed * 3;
+    const damp = Math.pow(0.03, dt); b.kx *= damp; b.kz *= damp;
+    const walk = d > 0.9 ? b.speed : 0;
+    const vx = dx * walk + b.kx, vz = dz * walk + b.kz;
+    const free = (x, z, y) => !E.solid_at(x, y + 0.2, z) && !E.solid_at(x, y + 1.2, z) && (b.s < 1.2 || !E.solid_at(x, y + 2.2, z));
+    let moved = false;
+    const tryAxis = (nx, nz, lx, lz) => {
+      if (free(lx, lz, b.y)) { b.x = nx; b.z = nz; moved = true; return true; }
+      if (b.ground && free(lx, lz, b.y + 1) && !E.solid_at(b.x, b.y + 2.4 * b.s, b.z)) { b.vy = 7; b.ground = false; }
+      return false;
+    };
+    const nx = b.x + vx * dt, nz = b.z + vz * dt, r = 0.32 * b.s;
+    tryAxis(nx, b.z, nx + Math.sign(vx) * r, b.z);
+    tryAxis(b.x, nz, b.x, nz + Math.sign(vz) * r);
+    // stuck behind a player wall: smash it
+    if (!moved && walk > 0) b.stuck += dt; else b.stuck = Math.max(0, b.stuck - dt);
+    if (b.stuck > 1.1) {
+      b.stuck = 0;
+      const fx = Math.floor(b.x + dx * (r + 0.6)), fz = Math.floor(b.z + dz * (r + 0.6));
+      for (let yy = Math.floor(b.y); yy <= Math.floor(b.y + 1.8 * b.s); yy++) {
+        const key = fx + ',' + yy + ',' + fz;
+        if (G.placed.has(key)) { G.placed.delete(key); setBlock(fx, yy, fz, 0); }
+      }
+    }
+    b.vy -= 22 * dt; b.y += b.vy * dt;
+    const g = E.ground_at(b.x, b.y + 0.45, b.z);
+    if (b.y <= g) { b.y = g; b.vy = 0; b.ground = true; } else b.ground = false;
+    if (b.y < -5) { b.dead = true; return; }
+    if (d < 1.2 * b.s && Math.abs(py - b.y) < 1.7) {
+      b.cool -= dt;
+      if (b.cool <= 0) { b.cool = 1; this.hurt(b.boss ? 2 : 1, dx, dz); }
+    } else b.cool = Math.max(b.cool, 0.4);
+  },
+  update(dt) {
+    G.t += dt; G.cool -= dt;
+    if (G.state === 'wait') { G.pause -= dt; if (G.pause <= 0) this.startWave(); }
+    for (const q of G.queue) { q.delay -= dt; if (q.delay <= 0) { q.done = true; this.spawn(q.boss); } }
+    G.queue = G.queue.filter((q) => !q.done);
+    for (const b of G.bots) { this.botStep(b, dt); if (G.over) return; }
+    for (const s of G.balls) {
+      for (let k = 0; k < 3 && !s.dead; k++) {
+        const h = dt / 3; s.vy -= 9 * h; s.x += s.vx * h; s.y += s.vy * h; s.z += s.vz * h;
+        if (E.solid_at(s.x, s.y, s.z)) { s.dead = true; break; }
+        for (const b of G.bots) {
+          const r = 0.45 * b.s;
+          if (!b.dead && Math.abs(s.x - b.x) < r && Math.abs(s.z - b.z) < r && s.y > b.y && s.y < b.y + 1.9 * b.s) {
+            b.hp--; b.hit = 0.18; b.kx = s.vx * 0.22 / b.s; b.kz = s.vz * 0.22 / b.s; s.dead = true;
+            if (b.hp <= 0) { b.dead = true; G.kills++; say(b.boss ? 'You knocked out the <b>Big Blocker</b>!' : 'Blocker knocked out!', 2500); }
+            break;
+          }
+        }
+      }
+      s.t += dt; if (s.t > 3 || s.y < -5) s.dead = true;
+    }
+    G.balls = G.balls.filter((s) => !s.dead); G.bots = G.bots.filter((b) => !b.dead);
+    G.regen += dt; if (G.regen > 5 && G.hp < 10) { G.hp++; G.regen = 0; }
+    if (G.state === 'fight' && !G.queue.length && !G.bots.length) {
+      if (G.wave >= 3) {
+        const best = store.get('warsBest'); const rec = best == null || G.t < best; if (rec) store.set('warsBest', G.t);
+        showResult('VICTORY!', '#ffd36b', 'You survived every wave of Blockers!', [['Blockers knocked out', G.kills], ['Hearts left', G.hp + ' of 10'], ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')]]);
+      } else {
+        G.state = 'wait'; G.pause = 4.5; G.bricks += 16; this.hot();
+        banner(`WAVE ${G.wave} CLEARED!`, `+16 bricks. Wave ${G.wave + 1} in 4 seconds…`, '#6fbf4a', 3200);
+      }
+    }
+  },
+  board() {
+    const hearts = '♥'.repeat(G.hp) + '<span style="opacity:.3">' + '♥'.repeat(10 - G.hp) + '</span>';
+    return `<h2>BLOCK WARS</h2><div class="big" style="color:#ff5280">${hearts}</div>${row('Wave', Math.max(1, G.wave) + ' of 3')}${row('Blockers left', G.bots.length + G.queue.length)}${row('Knocked out', G.kills)}${row('Bricks', G.bricks)}${row('In hand', ['Snowballs', 'Bricks', 'Pickaxe'][selected] || '—')}`;
+  },
+  draw(V, I) {
+    for (const b of G.bots) {
+      const o = [b.x, b.y, b.z], s = b.s, f = b.hit > 0;
+      const body = f ? [1, 1, 1] : b.boss ? [0.5, 0.12, 0.6] : [0.82, 0.2, 0.22];
+      const dark = f ? [1, 1, 1] : b.boss ? [0.3, 0.06, 0.38] : [0.5, 0.1, 0.12];
+      const skin = f ? [1, 1, 1] : [0.95, 0.78, 0.6];
+      const sw = Math.sin(b.phase) * 0.18 * s;
+      pushBox(V, I, o, [0.13 * s, 0.35 * s, sw], [0.1 * s, 0.35 * s, 0.1 * s], dark, b.yaw);
+      pushBox(V, I, o, [-0.13 * s, 0.35 * s, -sw], [0.1 * s, 0.35 * s, 0.1 * s], dark, b.yaw);
+      pushBox(V, I, o, [0, 1.02 * s, 0], [0.26 * s, 0.32 * s, 0.15 * s], body, b.yaw);
+      pushBox(V, I, o, [0.36 * s, 1.0 * s, -sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
+      pushBox(V, I, o, [-0.36 * s, 1.0 * s, sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
+      pushBox(V, I, o, [0, 1.58 * s, 0], [0.22 * s, 0.22 * s, 0.22 * s], skin, b.yaw);
+      pushBox(V, I, o, [0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
+      pushBox(V, I, o, [-0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
+      if (b.boss) pushBox(V, I, o, [0, 1.86 * s, 0], [0.2 * s, 0.06 * s, 0.2 * s], [1, 0.82, 0.35], b.yaw, 3);
+      // health bar
+      const w = 0.4 * s, frac = b.hp / b.max;
+      pushBox(V, I, o, [0, 2.15 * s, 0], [w, 0.05, 0.02], [0.15, 0.15, 0.15], b.yaw);
+      pushBox(V, I, o, [-w + w * frac, 2.15 * s, 0.025], [w * frac, 0.045, 0.01], [0.3, 0.9, 0.3], b.yaw, 3);
+    }
+    for (const sb of G.balls) pushBox(V, I, [sb.x, sb.y, sb.z], [0, 0, 0], [0.1, 0.1, 0.1], [0.95, 0.97, 1], 0, 3);
+  },
+};
+const GAMES = { survival: Survival, build: Build, parkour: Parkour, wars: Wars };
+
+// ---------- scene switching ----------
+function loadWorld(mode) {
+  if (E.is_riding()) E.toggle_ride();
+  if (mode === 0) { E.generate(20261108); buildLobbyExtras(); } else E.generate_scene(mode, 20261108);
+  E.respawn_player(); uploadWorld(); worldDirty = false;
+}
+function resetHud() {
+  $('minebar').hidden = true; $('prompt').hidden = true; $('ridebar').hidden = true;
+  closeMenu(); closeCraft(); $('result').hidden = true; mouseHeld = false; touchUse = false;
+  chatEl.innerHTML = ''; bannerT = 0; if (!joining) $('toast').hidden = true;
+}
+function loadGame(i) {
+  const p = PORTALS[i], game = GAMES[p.key];
+  scene = p.key; gameIdx = i; G = null; lastBoard = '';
+  resetHud(); loadWorld(p.mode);
+  yaw = game.yaw; pitch = -0.05; selected = 0;
+  game.init(); updateTouch();
+}
+function toLobby() {
+  scene = 'lobby'; G = null; gameIdx = -1; race.on = false; race.prevX = null;
+  resetHud(); loadWorld(0);
+  yaw = 0; pitch = -0.05; selected = 0;
+  $('board').innerHTML = LOBBY_BOARD; lastBoard = '';
+  setHotbar(LOBBY_SLOTS); updateTouch();
+  say('Back in the lobby.', 4000);
+}
+let joining = null;
+function startJoin(i) {
+  if (joining) return;
+  const p = PORTALS[i];
+  joining = { i, t: 0 };
+  $('toast').hidden = false; $('toastT').textContent = `Joining ${p.name}…`; $('toastT').style.color = p.color;
+  $('toastP').textContent = p.note; $('toastBar').parentElement.hidden = false; $('toastBar').style.width = '0%';
+}
+
+// ---------- input ----------
+const keys = {};
+let yaw = 0, pitch = -0.05, playing = false;
+let joy = { x: 0, y: 0 }, touchJump = false, touchSprint = false, touchUse = false, mouseHeld = false, lastHeld = false, rightHeld = false;
+addEventListener('keydown', (e) => {
+  if (!playing) return;
+  keys[e.code] = true;
+  if (e.code === 'KeyE' && $('result').hidden && $('craft').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
+  if (e.code === 'KeyC' && scene === 'survival' && $('menu').hidden && $('result').hidden) { $('craft').hidden ? openCraft() : (closeCraft(), lockMouse()); }
+  if (e.code === 'KeyR' && scene === 'build' && G && !G.over && !anyDialog()) Build.page();
+  if (e.code === 'KeyB' && !joining) { if (scene !== 'lobby') toLobby(); else { if (E.is_riding()) E.toggle_ride(); E.respawn_player(); yaw = 0; pitch = -0.05; race.on = false; say('Back at spawn.', 3000); } }
+  if (e.code === 'KeyQ') whistle();
+  if (e.code === 'KeyF' && !anyDialog()) ride();
+  if (/^Digit[1-9]$/.test(e.code) && !anyDialog()) pick(+e.code.slice(5) - 1);
+  if (['Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseHeld = false; rightHeld = false; });
+let dragging = false;
+const secondary = () => { if (scene !== 'lobby' && G && !G.over && GAMES[scene].secondary) GAMES[scene].secondary(); };
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('mousedown', (e) => {
+  if (!playing || anyDialog()) return;
+  if (e.button === 2) { rightHeld = true; secondary(); return; }
+  if (e.button !== 0) return;
+  dragging = true; if (scene !== 'lobby') mouseHeld = true;
+  lockMouse();
+});
+addEventListener('mouseup', (e) => { if (e.button === 0) { dragging = false; mouseHeld = false; } if (e.button === 2) rightHeld = false; });
+addEventListener('mousemove', (e) => {
+  if (!playing) return;
+  if (document.pointerLockElement === canvas || dragging) { yaw -= e.movementX * 0.0025; pitch -= e.movementY * 0.0025; pitch = Math.max(-1.5, Math.min(1.5, pitch)); }
+});
+addEventListener('wheel', (e) => { if (!playing || anyDialog()) return; pick((selected + (e.deltaY > 0 ? 1 : 8)) % 9, true); }, { passive: true });
+
+const coarse = matchMedia('(pointer: coarse)').matches;
+function updateTouch() {
+  if (!coarse) return;
+  const g = scene !== 'lobby', act = g && scene !== 'parkour';
+  $('tride').hidden = g; $('tuse').hidden = !act; $('tplace').hidden = !act;
+  if (act) { $('tuse').textContent = GAMES[scene].use; $('tplace').textContent = scene === 'wars' ? 'WALL' : 'PLACE'; }
+}
+if (coarse) {
+  const stick = $('stick'), knob = stick.querySelector('i'); let sid = null;
+  stick.addEventListener('pointerdown', (e) => { sid = e.pointerId; stick.setPointerCapture(sid); move(e); });
+  const move = (e) => { if (e.pointerId !== sid) return; const r = stick.getBoundingClientRect(); let x = (e.clientX - r.left - r.width/2) / (r.width/2), y = (e.clientY - r.top - r.height/2) / (r.height/2); const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy = { x, y }; knob.style.transform = `translate(${x*36}px,${y*36}px)`; };
+  stick.addEventListener('pointermove', move);
+  const end = (e) => { if (e.pointerId !== sid) return; sid = null; joy = { x: 0, y: 0 }; knob.style.transform = ''; };
+  stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
+  const hold = (id, set) => { const b = $(id); b.addEventListener('pointerdown', (e) => { e.preventDefault(); set(true); }); b.addEventListener('pointerup', () => set(false)); b.addEventListener('pointercancel', () => set(false)); b.addEventListener('pointerleave', () => set(false)); };
+  hold('tjump', (v) => touchJump = v); hold('tsprint', (v) => touchSprint = v); hold('tuse', (v) => touchUse = v);
+  $('tride').addEventListener('click', ride);
+  $('tplace').addEventListener('click', secondary);
+  let lookId = null, lx = 0, ly = 0;
+  canvas.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'touch' || lookId !== null) return; lookId = e.pointerId; lx = e.clientX; ly = e.clientY; });
+  canvas.addEventListener('pointermove', (e) => { if (e.pointerId !== lookId) return; yaw -= (e.clientX - lx) * 0.006; pitch -= (e.clientY - ly) * 0.006; pitch = Math.max(-1.5, Math.min(1.5, pitch)); lx = e.clientX; ly = e.clientY; });
+  const lend = (e) => { if (e.pointerId === lookId) lookId = null; };
+  canvas.addEventListener('pointerup', lend); canvas.addEventListener('pointercancel', lend);
+}
+
+$('play').addEventListener('click', () => {
+  $('start').hidden = true; playing = true; $('crosshair').hidden = false;
+  if (coarse) { $('touch').hidden = false; updateTouch(); }
+  else lockMouse();
+  say('Welcome to <b>Class Block Game</b>!', 12000);
+  say('Walk into a portal to join a game, or press <b>E</b> for the menu. <b>B</b> brings you back to the lobby.', 12000);
+  say('Ride <b>Nugget</b> (F) around the <b>Nugget Raceway</b> and set a best lap!', 14000);
+  say('Find the colored blocks at the edges and parkour up to all 4 <b>sky islands</b>!', 14000);
+});
+
+// ---------- extra geometry: bots, snowballs, block outline ----------
+function pushBox(V, I, o, c, h, col, yaw = 0, mat = 0) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  for (let f = 0; f < 6; f++) {
+    const n = FACES[f], a = n.findIndex((v) => v !== 0), u = (a + 1) % 3, v = (a + 2) % 3, base = V.length / 9;
+    const wn = [n[0] * cy + n[2] * sy, n[1], -n[0] * sy + n[2] * cy];
+    const shade = wn[1] > 0.6 ? 1 : wn[1] < -0.6 ? 0.55 : 0.68 + 0.14 * Math.abs(wn[0]);
+    const dir = Math.abs(wn[1]) > 0.6 ? (wn[1] > 0 ? 2 : 3) : Math.abs(wn[0]) > Math.abs(wn[2]) ? (wn[0] > 0 ? 0 : 1) : (wn[2] > 0 ? 4 : 5);
+    for (let k = 0; k < 4; k++) {
+      const du = (k === 1 || k === 2) ? 1 : -1, dv = k >= 2 ? 1 : -1;
+      const p = [c[0], c[1], c[2]]; p[a] += n[a] * h[a]; p[u] += du * h[u]; p[v] += dv * h[v];
+      V.push(o[0] + p[0] * cy + p[2] * sy, o[1] + p[1], o[2] - p[0] * sy + p[2] * cy, col[0], col[1], col[2], dir, mat, shade);
+    }
+    I.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+}
+const fxGeo = makeVao(), lineGeo = makeVao();
+const LINE_I = new Uint32Array([0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7]);
+function drawGeo(geo, V, I, mode) {
+  gl.bindVertexArray(geo.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, geo.vb); gl.bufferData(gl.ARRAY_BUFFER, V, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, geo.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, I, gl.DYNAMIC_DRAW);
+  gl.drawElements(mode, I.length, gl.UNSIGNED_INT, 0);
+}
+function outlineVerts(h) {
+  const e = 0.006, a = [h.x - e, h.y - e, h.z - e], b = [h.x + 1 + e, h.y + 1 + e, h.z + 1 + e], V = [];
+  [[a[0],a[1],a[2]],[b[0],a[1],a[2]],[b[0],a[1],b[2]],[a[0],a[1],b[2]],[a[0],b[1],a[2]],[b[0],b[1],a[2]],[b[0],b[1],b[2]],[a[0],b[1],b[2]]]
+    .forEach((p) => V.push(p[0], p[1], p[2], 0.05, 0.05, 0.07, 2, 0, 1));
+  return new Float32Array(V);
+}
+
+// test hook: only when the page is opened with #debug
+if (location.hash === '#debug') window.cbg = { skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+
+// ---------- loop ----------
+setHotbar(LOBBY_SLOTS);
+buildLobbyExtras(); uploadWorld();
+let last = performance.now(), T = 0, dogWasSitting = false, bob = 0;
+function resize() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = Math.round(innerWidth * dpr); canvas.height = Math.round(innerHeight * dpr);
+}
+addEventListener('resize', resize); resize();
+
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
+  const blocked = anyDialog() || !!joining;
+  const lobby = scene === 'lobby';
+  // input → world-space move
+  let fx = 0, fz = 0;
+  const ridingNow = lobby && E.is_riding();
+  if (playing && !blocked) {
+    const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - joy.y;
+    const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + joy.x;
+    const sy = Math.sin(yaw), cy = Math.cos(yaw);
+    fx = sy * f - cy * s; fz = cy * f + sy * s;
+    const l = Math.hypot(fx, fz); if (l > 1) { fx /= l; fz /= l; }
+  }
+  const jump = playing && !blocked && (keys.Space || touchJump) ? 1 : 0;
+  const sprint = keys.ShiftLeft || keys.ShiftRight || touchSprint || (ridingNow && rightHeld) ? 1 : 0;
+  const ret = joining ? 0 : E.player_step(dt, fx, fz, jump, sprint);
+  if (lobby) {
+    E.dog_step(dt);
+    if (ret > 0 && playing) startJoin(ret - 1);
+    if (ret === -1) say('You fell off the island! Back to spawn.');
+    if (playing) { raceStep(dt); skyStep(); }
+  } else if (G && !G.over && playing && !blocked) {
+    const game = GAMES[scene];
+    game.update(dt, ret);
+    const held = mouseHeld || touchUse, pressed = held && !lastHeld; lastHeld = held;
+    if (G && !G.over && game.primary) game.primary(dt, held, pressed);
+  } else { $('minebar').hidden = true; lastHeld = false; }
+  if (worldDirty) { uploadWorld(); worldDirty = false; }
+
+  if (joining) {
+    joining.t += dt; $('toastBar').style.width = Math.min(100, joining.t / 1.1 * 100) + '%';
+    if (joining.t > 1.1) { const i = joining.i; joining = null; $('toast').hidden = true; loadGame(i); }
+  } else if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('toast').hidden = true; }
+
+  const riding = lobby && E.is_riding();
+  const speed = E.player_speed();
+  if (E.player_on_ground() && speed > 0.5) bob += dt * speed * (riding ? 0.9 : 2.2);
+  const eye = [E.player_x(), E.player_y() + (riding ? 2.1 : 1.62) + Math.sin(bob) * (riding ? 0.05 : 0.04), E.player_z()];
+  const dir = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+  curEye = eye; curDir = dir;
+  const fovBase = 70 * Math.PI / 180, fov = fovBase + (riding ? Math.min(0.35, speed / 70) : 0);
+  const asp = canvas.width / canvas.height;
+  const P = persp(fov, asp, 0.05, 260), L = look(eye, dir), VP = mul(P, L.m);
+  const fog = [0.74, 0.86, 0.97];
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(fog[0], fog[1], fog[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  // sky
+  gl.disable(gl.DEPTH_TEST); gl.useProgram(sky.p); gl.bindVertexArray(skyVao);
+  gl.uniform3fv(sky.u.uR, L.r); gl.uniform3fv(sky.u.uU, [L.r[1]*dir[2]-L.r[2]*dir[1], L.r[2]*dir[0]-L.r[0]*dir[2], L.r[0]*dir[1]-L.r[1]*dir[0]]);
+  gl.uniform3fv(sky.u.uF, dir); gl.uniform3fv(sky.u.uEye, eye); gl.uniform1f(sky.u.uTan, Math.tan(fov / 2)); gl.uniform1f(sky.u.uAsp, asp); gl.uniform1f(sky.u.uTime, T); gl.uniform3fv(sky.u.uFog, fog);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  // world
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
+  gl.useProgram(prog.p);
+  gl.uniformMatrix4fv(prog.u.uVP, false, VP); gl.uniform3fv(prog.u.uEye, eye); gl.uniform1f(prog.u.uTime, T); gl.uniform3fv(prog.u.uFog, fog);
+  gl.bindVertexArray(world.vao); gl.depthMask(true); gl.disable(gl.BLEND);
+  gl.drawElements(gl.TRIANGLES, nOpaque, gl.UNSIGNED_INT, 0);
+  // dog (lobby only)
+  let dogState = null;
+  if (lobby) {
+    const ddx = E.dog_dx(), ddz = E.dog_dz();
+    dogState = { x: E.dog_x(), y: E.dog_y(), z: E.dog_z(), yaw: (Math.abs(ddx) + Math.abs(ddz) > 1e-4) ? Math.atan2(ddx, ddz) : 0, mode: E.dog_mode(), moving: E.dog_moving(), t: T, saddle: true };
+    if (riding) dogState.yaw = yaw;
+    const dg = buildDog(dogState);
+    drawGeo(dogGeo, dg.V, dg.I, gl.TRIANGLES);
+  }
+  // bots + snowballs
+  if (scene === 'wars' && G) { const V = [], I = []; Wars.draw(V, I); if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES); }
+  // targeted block outline
+  if (!lobby && G && !G.over && GAMES[scene].outline && playing && !blocked) {
+    const h = aim(scene === 'build' ? 7 : 5);
+    if (h) drawGeo(lineGeo, outlineVerts(h), LINE_I, gl.LINES);
+  }
+  // water + portals
+  gl.bindVertexArray(world.vao); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+  gl.drawElements(gl.TRIANGLES, nIdx - nOpaque, gl.UNSIGNED_INT, nOpaque * 4);
+  gl.depthMask(true);
+
+  // labels
+  const place = (el, wp, maxD) => {
+    const x = wp[0], y = wp[1], z = wp[2];
+    const cx = VP[0]*x + VP[4]*y + VP[8]*z + VP[12], cyy = VP[1]*x + VP[5]*y + VP[9]*z + VP[13], cw = VP[3]*x + VP[7]*y + VP[11]*z + VP[15];
+    const dist = Math.hypot(x - eye[0], y - eye[1], z - eye[2]);
+    if (!lobby || cw <= 0.1 || dist > maxD || !playing) { el.style.display = 'none'; return; }
+    el.style.display = ''; el.style.transform = `translate(${(cx/cw*0.5+0.5)*innerWidth}px, ${(1-(cyy/cw*0.5+0.5))*innerHeight}px) translate(-50%,-100%)`;
+    el.style.opacity = String(Math.max(0, Math.min(1, (maxD - dist) / 8)));
+  };
+  PORTALS.forEach((p, i) => place(portalLabels[i], p.pos, 48));
+  place(trackLabel, [32, 23.9, 6], 60);
+  skyIslands.forEach((isl, i) => place(skyLabels[i], [isl.x, SKY_TOP + 7.2, isl.z], 44));
+  place(dogLabel, dogState ? [dogState.x, dogState.y + 1.35, dogState.z] : [0, -99, 0], riding ? 0 : 22);
+
+  // HUD state
+  if (lobby) {
+    const mode = dogState.mode;
+    $('dogstate').textContent = mode === 3 ? 'Being ridden' : mode === 2 ? 'Sitting' : mode === 1 ? 'Following you' : 'Doing laps';
+    $('speed').textContent = speed.toFixed(1) + ' b/s';
+    $('bestlap').textContent = race.best == null ? '—' : fmtTime(race.best);
+    $('skycount').textContent = skyProg.found.size + ' of 4';
+    $('ridebar').hidden = !riding || !playing;
+    if (riding) {
+      const t = race.on ? 'LAP ' + fmtTime(race.t) : 'RIDE THROUGH THE ARCH TO RACE';
+      $('ridebar').textContent = `${t} · RIGHT-CLICK TURBO · F HOP OFF`;
+    }
+    const near = !riding && E.dog_distance() < 3.5 && playing;
+    $('prompt').hidden = !near; if (near) $('prompt').textContent = coarse ? 'Tap RIDE to hop on Nugget' : 'Press F to ride Nugget';
+    if (playing && mode === 2 && !dogWasSitting) say('<b>Nugget</b>: Woof!', 4000);
+    dogWasSitting = mode === 2;
+  } else if (G) {
+    setBoard(GAMES[scene].board());
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+} catch (e) { showErr('The lobby failed to start: ' + e.message); console.error(e); }
+})();
+</script>
+
+</body>
+</html>
