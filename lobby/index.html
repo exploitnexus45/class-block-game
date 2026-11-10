@@ -102,7 +102,7 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
   .slot .ic { inset: 8px; }
   #chat { font-size: 18px; width: calc(100vw - 200px); bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
 }
-#result, #craft, #vote { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
+#result, #craft, #vote, #shop { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 8, 18, .6); padding: 16px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px)); }
 #menu h2.h2b { margin: 18px 0 10px; }
 #result h2, #craft h2 { margin: 0 0 12px; font: 700 20px var(--display); color: var(--gold); text-wrap: balance; }
 #resB { font-size: 22px; }
@@ -141,6 +141,16 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 #portalfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(circle, rgba(140, 60, 220, .25), rgba(90, 20, 160, .85)); }
 .slot .blk.food { border-radius: 40% 45% 40% 50%; }
 @media (max-width: 640px) { #hearts { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); } #hearts i { width: 14px; height: 13px; } }
+#shop .card { max-height: calc(100vh - 32px); overflow-y: auto; width: min(520px, 100%); }
+#shopGo { margin-top: 14px; position: sticky; bottom: 0; box-shadow: inset 3px 3px 0 rgba(255,255,255,.25), inset -3px -3px 0 rgba(0,0,0,.35), 0 -10px 16px var(--panel-solid); }
+.shopitem span small { display: block; font-size: 17px; color: var(--ink-dim); }
+#bossbar { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); width: min(420px, calc(100vw - 300px)); min-width: 180px; text-align: center; pointer-events: none; }
+#bossbar b { display: block; font: 700 13px var(--display); letter-spacing: .08em; color: var(--gold); text-shadow: 2px 2px 0 #000; margin-bottom: 4px; }
+#bossbar i { display: block; height: 12px; background: rgba(0,0,0,.55); box-shadow: inset 2px 2px 0 var(--edge-lo); }
+#bossbar i span { display: block; height: 100%; width: 100%; background: linear-gradient(#ffd36b, #e0902a); transition: width .15s; }
+#combo { position: fixed; left: 50%; top: 62%; transform: translateX(-50%); font: 700 26px var(--display); color: var(--gold); text-shadow: 3px 3px 0 #6b3d00; pointer-events: none; animation: pop .35s ease-out; }
+@keyframes pop { from { transform: translateX(-50%) scale(1.6); } to { transform: translateX(-50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { #combo { animation: none; } }
 #hurt { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 140px 40px rgba(220, 30, 40, .75); opacity: 0; transition: opacity .3s; }
 #tuse { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); right: calc(104px + env(safe-area-inset-right, 0px)); }
 #tplace { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
@@ -174,6 +184,8 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 <div id="minebar" hidden><i></i></div>
 <div id="hearts" hidden role="img" aria-label="Health"></div>
 <div id="portalfx"></div>
+<div id="bossbar" hidden><b>THE BLOCK KING</b><i><span id="bossFill"></span></i></div>
+<div id="combo" hidden></div>
 <div id="hurt"></div>
 
 <nav id="hotbar" class="panel" aria-label="Hotbar"></nav>
@@ -205,6 +217,15 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
     <div id="resB"></div>
     <button class="btn" id="resKeep" hidden>KEEP PLAYING</button>
     <div class="row2"><button class="btn" id="resAgain">PLAY AGAIN</button><button class="btn alt" id="resLobby">LOBBY</button></div>
+  </div>
+</div>
+
+<div id="shop" hidden>
+  <div class="card" role="dialog" aria-labelledby="shopT">
+    <h2 id="shopT">SHOP</h2>
+    <p class="fnote" id="shopNext"></p>
+    <div class="games" id="shopList"></div>
+    <button class="btn" id="shopGo">START NEXT WAVE</button>
   </div>
 </div>
 
@@ -247,6 +268,7 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
       <kbd>RIGHT-CLICK</kbd><span>Hold for turbo on Nugget · place blocks in games</span>
       <kbd>E</kbd><span>Game menu · inventory in Survival</span>
       <kbd>B</kbd><span>Back to the lobby</span>
+      <kbd>M</kbd><span>Sound on or off</span>
       <kbd>MOUSE</kbd><span>Look around (Esc frees the cursor)</span>
     </div>
     <button class="btn" id="play">PLAY</button>
@@ -676,7 +698,8 @@ const LOBBY_BOARD = $('board').innerHTML;
 let lastBoard = '';
 function setBoard(html) { if (html !== lastBoard) { $('board').innerHTML = html; lastBoard = html; } }
 const row = (a, b, cls = '') => `<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`;
-const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('vote').hidden || !$('start').hidden;
+const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('vote').hidden || !$('shop').hidden || !$('start').hidden;
+$('shopGo').addEventListener('click', () => { if (scene === 'wars' && G && G.state === 'shop') Wars.closeShop(); });
 function releaseMouse() { try { document.exitPointerLock(); } catch (e) {} }
 function lockMouse() { if (coarse) return; try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
 
@@ -1669,35 +1692,114 @@ const Parkour = {
 };
 
 // ---------- BLOCK WARS ----------
-const CORNERS = [[15.5, 15.5], [49.5, 15.5], [15.5, 49.5], [49.5, 49.5]];
-const WAVES = [3, 5, 7];
+// 10 waves, six enemy types, two Block King boss fights, a coin shop between waves,
+// upgrades, snow golem turrets, combos, and Nugget the dog as your sidekick.
+const FOES = {
+  blocker: { name: 'Blocker', hp: 2, speed: 2.4, s: 1, dmg: 2, col: [0.82, 0.2, 0.22], dark: [0.5, 0.1, 0.12], pts: 10, coins: 2 },
+  speedy: { name: 'Speedy', hp: 1, speed: 4.8, s: 0.75, dmg: 1, col: [0.98, 0.78, 0.15], dark: [0.7, 0.5, 0.05], pts: 15, coins: 2 },
+  tank: { name: 'Tank', hp: 8, speed: 1.6, s: 1.5, dmg: 4, col: [0.5, 0.12, 0.6], dark: [0.3, 0.06, 0.38], pts: 40, coins: 6, smash: 2 },
+  thrower: { name: 'Thrower', hp: 3, speed: 2.1, s: 1, dmg: 2, col: [0.2, 0.45, 0.88], dark: [0.1, 0.25, 0.55], pts: 25, coins: 4, range: 10 },
+  boomer: { name: 'Boomer', hp: 2, speed: 3.0, s: 1, dmg: 7, col: [0.35, 0.82, 0.3], dark: [0.18, 0.5, 0.15], pts: 20, coins: 3, explode: true },
+  king: { name: 'Block King', hp: 60, speed: 1.8, s: 2.3, dmg: 3, col: [0.92, 0.72, 0.18], dark: [0.62, 0.42, 0.06], pts: 300, coins: 40, smash: 3, boss: true },
+};
+const WAVES = [
+  { blocker: 4 },
+  { blocker: 5, speedy: 2 },
+  { blocker: 4, speedy: 3, thrower: 1 },
+  { blocker: 3, thrower: 2, boomer: 2, tank: 1 },
+  { king: 1, blocker: 4 },
+  { speedy: 5, boomer: 3, thrower: 2 },
+  { tank: 2, blocker: 4, thrower: 3 },
+  { speedy: 6, boomer: 4, tank: 2 },
+  { thrower: 4, tank: 3, blocker: 4, boomer: 3 },
+  { king: 1, tank: 2, boomer: 2 },
+];
+const SPAWNS = [[15.5, 15.5], [49.5, 15.5], [15.5, 49.5], [49.5, 49.5], [32.5, 13.5], [32.5, 51.5], [13.5, 32.5], [51.5, 32.5]];
+const UPGRADES = [
+  { key: 'rapid', name: 'Rapid fire', desc: 'Throw snowballs faster', costs: [8, 16], col: '#e8f4ff' },
+  { key: 'spread', name: 'Spread shot', desc: 'Throw 3, then 5 snowballs at once', costs: [12, 24], col: '#bfe3ff' },
+  { key: 'power', name: 'Power snow', desc: 'Snowballs hit harder', costs: [10, 20], col: '#8fd0ff' },
+  { key: 'obsidian', name: 'Obsidian walls', desc: 'Walls take 3 smashes to break', costs: [15], col: '#2a1f45' },
+  { key: 'nugget', name: 'Hire Nugget', desc: 'Nugget the dog bites enemies for you', costs: [20], col: '#c98a3c' },
+];
+const SUPPLIES = [
+  { key: 'bricks', name: '16 wall blocks', desc: 'Right-click to build', cost: 5, col: '#78787a', give: () => { G.bricks += 16; } },
+  { key: 'fire', name: '5 fireballs', desc: 'Big explosions (slot 4)', cost: 10, col: '#ff7a1a', give: () => { G.fireballs += 5; } },
+  { key: 'golem', name: 'Snow golem turret', desc: 'Shoots enemies by itself (slot 5)', cost: 15, col: '#f2f2f2', give: () => { G.golems += 1; } },
+  { key: 'potion', name: 'Healing potion', desc: '+5 hearts (slot 6)', cost: 6, col: '#e0407a', give: () => { G.potions += 1; } },
+];
+// tiny sound effects made on the fly (M mutes)
+let AC = null, muted = !!store.get('muted');
+function sfx(kind) {
+  if (muted) return;
+  try { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === 'suspended') AC.resume(); } catch (e) { return; }
+  const S = { throw: ['triangle', 900, 500, 0.06, 0.04], hit: ['square', 320, 180, 0.07, 0.05], kill: ['square', 520, 1040, 0.12, 0.06], hurt: ['sawtooth', 160, 70, 0.22, 0.08],
+    coin: ['sine', 1200, 1700, 0.1, 0.05], boom: ['sawtooth', 120, 30, 0.45, 0.13], wave: ['triangle', 440, 880, 0.35, 0.07], bark: ['square', 700, 420, 0.08, 0.05],
+    slam: ['sawtooth', 90, 35, 0.4, 0.13], buy: ['sine', 660, 990, 0.12, 0.06], fuse: ['sawtooth', 300, 900, 0.5, 0.04] }[kind];
+  if (!S) return;
+  try {
+    const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.connect(g); g.connect(AC.destination);
+    o.type = S[0]; o.frequency.setValueAtTime(S[1], t); o.frequency.exponentialRampToValueAtTime(S[2], t + S[3]);
+    g.gain.setValueAtTime(S[4], t); g.gain.exponentialRampToValueAtTime(0.0001, t + S[3]);
+    o.start(t); o.stop(t + S[3] + 0.02);
+  } catch (e) {}
+}
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : w.endsWith('y') ? '' : 's'}`.replace(/Speedys$/, 'Speedies');
+const waveText = (w) => Object.entries(WAVES[w]).map(([k, n]) => FOES[k].boss ? FOES[k].name : plural(n, FOES[k].name)).join(' · ');
 const Wars = {
   title: 'BLOCK WARS', yaw: 0, use: 'USE',
   get outline() { return selected === 2; },
   init() {
-    G = { hp: 10, bots: [], balls: [], queue: [], wave: 0, state: 'wait', pause: 3.5, kills: 0, bricks: 24, placed: new Set(), cool: 0, regen: 0, t: 0 };
-    setHotbar([{ icon: 'snow', tip: 'Snowball blaster (click)' }, { block: 8, tip: 'Stone bricks (right-click)', count: G.bricks }, { icon: 'pick', tip: 'Pickaxe: hold click to mine (+1 brick)' }]);
-    G.mine = null;
-    banner('BLOCK WARS', 'Wave 1 starts in 3 seconds. Click to throw snowballs!', '#ff5280', 3200);
-    say('<b>Block Wars</b>: Blockers are coming! <b>Click</b> to throw snowballs.', 15000);
-    say('<b>Right-click</b> to build brick walls. Blockers smash walls, so keep moving!', 15000);
-    say('Press <b>3</b> for your <b>pickaxe</b>: hold click to mine blocks and get bricks back.', 15000);
-    say('Survive all 3 waves to win.', 15000);
+    G = { hp: 20, bots: [], balls: [], shots: [], queue: [], parts: [], drops: [], golemList: [], wave: 0, state: 'count', count: 3.5,
+      kills: 0, score: 0, coins: 0, combo: { n: 0, t: 0 }, bricks: 24, fireballs: 0, golems: 0, potions: 0, placed: new Map(),
+      up: { rapid: 0, spread: 0, power: 0, obsidian: 0, nugget: 0 }, cool: 0, regen: 0, hurtT: 9, t: 0, shake: 0, mine: null, nugget: null,
+      best: store.get('warsScore') || 0, summonT: 8 };
+    this.hot();
+    $('hearts').hidden = false; G.heartsShown = null; Survival.hearts();
+    banner('BLOCK WARS', `Wave 1: ${waveText(0)}`, '#ff5280', 3200);
+    say('<b>Block Wars</b>: survive 10 waves! <b>Click</b> throws snowballs, <b>right-click</b> builds walls.', 16000);
+    say('Earn <b>coins</b> for every enemy and spend them in the <b>shop</b> between waves.', 16000);
+    say('Slot <b>3</b> is a pickaxe (mine blocks for walls). Chain kills for <b>combos</b>! <b>M</b> mutes sound.', 16000);
   },
-  hot() { SLOTS[1].count = G.bricks; refreshHotbar(); },
-  primary(dt, held) {
+  get wallId() { return G.up.obsidian ? 11 : 8; },
+  hot() {
+    setHotbar([
+      { icon: 'snow', tip: 'Snowball blaster (click)' },
+      { block: this.wallId, count: G.bricks, tip: (G.up.obsidian ? 'Obsidian' : 'Brick') + ' walls (right-click)' },
+      { icon: 'pick', tip: 'Pickaxe: hold click to mine (+1 wall block)' },
+      G.fireballs ? { color: '#ff7a1a', count: G.fireballs, tip: 'Fireballs (click): big explosion' } : {},
+      G.golems ? { color: '#f2f2f2', count: G.golems, tip: 'Snow golem turret (right-click to place)' } : {},
+      G.potions ? { color: '#e0407a', count: G.potions, tip: 'Healing potion (right-click to drink)' } : {},
+    ]);
+  },
+  // ----- player actions -----
+  primary(dt, held, pressed) {
     if (selected === 2) return this.mine(dt, held);
     $('minebar').hidden = true; G.mine = null;
-    if (!held || G.cool > 0) return;
-    G.cool = 0.28;
-    G.balls.push({ x: curEye[0] + curDir[0] * 0.6, y: curEye[1] + curDir[1] * 0.6 - 0.1, z: curEye[2] + curDir[2] * 0.6, vx: curDir[0] * 30, vy: curDir[1] * 30 + 1.5, vz: curDir[2] * 30, t: 0 });
+    if (!held || G.cool > 0 || G.state === 'shop') return;
+    if (selected === 3) {
+      if (!pressed) return;
+      if (!G.fireballs) return warn('No fireballs. Buy some in the shop!');
+      G.fireballs--; G.cool = 0.6; this.hot(); sfx('throw');
+      G.balls.push({ x: curEye[0] + curDir[0] * 0.6, y: curEye[1] + curDir[1] * 0.6 - 0.1, z: curEye[2] + curDir[2] * 0.6, vx: curDir[0] * 22, vy: curDir[1] * 22 + 2, vz: curDir[2] * 22, t: 0, fire: true, dmg: 4 });
+      return;
+    }
+    if (selected !== 0) return;
+    G.cool = [0.28, 0.18, 0.11][G.up.rapid];
+    const n = [1, 3, 5][G.up.spread], dmg = [1, 2, 3][G.up.power];
+    sfx('throw');
+    for (let i = 0; i < n; i++) {
+      const a = (i - (n - 1) / 2) * 0.09, c = Math.cos(a), s = Math.sin(a);
+      const dx = curDir[0] * c - curDir[2] * s, dz = curDir[0] * s + curDir[2] * c;
+      G.balls.push({ x: curEye[0] + dx * 0.6, y: curEye[1] + curDir[1] * 0.6 - 0.1, z: curEye[2] + dz * 0.6, vx: dx * 30, vy: curDir[1] * 30 + 1.5, vz: dz * 30, t: 0, dmg });
+    }
   },
   mine(dt, held) {
     $('minebar').hidden = true;
     if (!held) { G.mine = null; return; }
     const h = aim(5); if (!h) { G.mine = null; return; }
     if (h.y <= 16) { G.mine = null; return warn('The arena floor is too tough to mine.'); }
-    const key = h.x + ',' + h.y + ',' + h.z;
+    const key = posKey(h.x, h.y, h.z);
     if (!G.mine || G.mine.key !== key) G.mine = { key, t: 0, need: G.placed.has(key) ? 0.35 : 0.8 };
     G.mine.t += dt;
     $('minebar').hidden = false; $('minebar').firstChild.style.width = Math.min(100, G.mine.t / G.mine.need * 100) + '%';
@@ -1706,121 +1808,381 @@ const Wars = {
     G.bricks++; this.hot();
   },
   secondary() {
-    if (G.bricks <= 0) return warn('Out of bricks! You get 16 more after each wave.');
-    const p = tryPlace(8); if (p) { G.bricks--; G.placed.add(p.x + ',' + p.y + ',' + p.z); this.hot(); }
+    if (selected === 4) {
+      if (!G.golems) return warn('No snow golems. Buy one in the shop!');
+      const h = aim(6); if (!h || h.ny !== 1) return warn('Aim at the ground to place a snow golem.');
+      if (G.golemList.length >= 4) return warn('You can have 4 snow golems at once.');
+      G.golems--; G.golemList.push({ x: h.x + 0.5, y: h.y + 1, z: h.z + 0.5, cool: 0.5, yaw: 0 }); this.hot(); sfx('buy');
+      return say('Snow golem placed! It shoots enemies on its own.', 3000);
+    }
+    if (selected === 5) {
+      if (!G.potions) return warn('No potions. Buy one in the shop!');
+      if (G.hp >= 20) return warn('Your hearts are already full.');
+      G.potions--; G.hp = Math.min(20, G.hp + 10); Survival.hearts(); this.hot(); sfx('coin');
+      return say('Glug glug! <b>+5 hearts</b>', 2500);
+    }
+    if (G.bricks <= 0) return warn('Out of wall blocks! Mine some with the pickaxe or buy more.');
+    const p = tryPlace(this.wallId);
+    if (p) { G.bricks--; G.placed.set(posKey(p.x, p.y, p.z), G.up.obsidian ? 3 : 1); this.hot(); }
   },
+  // ----- damage -----
   hurt(n, dx, dz) {
-    G.hp = Math.max(0, G.hp - n); G.regen = 0;
-    E.player_push(dx * 7, 5, dz * 7);
+    if (G.over) return;
+    G.hp = Math.max(0, G.hp - n); G.hurtT = 0; Survival.hearts();
+    E.player_push(dx * 7, 5, dz * 7); G.shake = Math.max(G.shake, 0.6); sfx('hurt');
     $('hurt').style.opacity = '1'; setTimeout(() => { $('hurt').style.opacity = '0'; }, 160);
-    if (G.hp <= 0) showResult('KNOCKED OUT!', '#ff5280', 'The Blockers got you. Try building walls and keep moving!', [['Wave reached', G.wave + ' of 3'], ['Blockers knocked out', G.kills], ['Time', fmtTime(G.t)]]);
+    if (G.hp <= 0) this.end(false);
   },
+  end(won) {
+    $('bossbar').hidden = true; $('combo').hidden = true;
+    const rec = G.score > G.best; if (rec) store.set('warsScore', G.score);
+    const lines = [['Score', G.score + (rec ? ' (new best!)' : '')], ['Best', Math.max(G.best, G.score)], ['Wave reached', `${G.wave} of 10`], ['Enemies knocked out', G.kills], ['Time', fmtTime(G.t)]];
+    if (won) showResult('BLOCK WARS CHAMPION!', '#ffd36b', 'You beat all 10 waves and the Block King!', lines);
+    else showResult('KNOCKED OUT!', '#ff5280', G.wave >= 5 ? 'So close! Buy upgrades in the shop and keep moving.' : 'Build walls, keep moving, and spend your coins in the shop.', lines);
+  },
+  burst(x, y, z, col, n, speed = 4) {
+    for (let i = 0; i < n && G.parts.length < 320; i++) {
+      const a = Math.random() * 6.28, u = Math.random() * 2 - 1, r = Math.sqrt(1 - u * u), sp = speed * (0.4 + Math.random() * 0.8);
+      G.parts.push({ x, y, z, vx: Math.cos(a) * r * sp, vy: Math.abs(u) * sp + 2, vz: Math.sin(a) * r * sp, t: 0, life: 0.5 + Math.random() * 0.5, col, s: 0.05 + Math.random() * 0.07 });
+    }
+  },
+  explode(x, y, z, r, dmg, byPlayer) {
+    sfx('boom'); G.shake = Math.max(G.shake, 1);
+    this.burst(x, y, z, [1, 0.55, 0.15], 26, 7); this.burst(x, y, z, [0.35, 0.35, 0.35], 14, 5);
+    if (byPlayer) {
+      for (const b of G.bots) { const d = Math.hypot(b.x - x, b.y + b.s - y, b.z - z); if (d < r + b.s * 0.4) this.damage(b, Math.ceil(dmg * (1 - d / (r + 1))), x, z); }
+    } else {
+      const px = E.player_x(), py = E.player_y() + 0.9, pz = E.player_z(), d = Math.hypot(px - x, py - y, pz - z);
+      if (d < r) { const l = Math.hypot(px - x, pz - z) || 1; this.hurt(Math.max(1, Math.round(dmg * (1 - d / r))), (px - x) / l, (pz - z) / l); }
+      for (const [k] of G.placed) { const [bx, by, bz] = k.split(',').map(Number); if (Math.hypot(bx + 0.5 - x, by + 0.5 - y, bz + 0.5 - z) < r - 0.4) { G.placed.delete(k); setBlock(bx, by, bz, 0); } }
+    }
+  },
+  damage(b, n, fx, fz) {
+    if (b.dead) return;
+    b.hp -= n; b.hit = 0.15;
+    const dx = b.x - fx, dz = b.z - fz, l = Math.hypot(dx, dz) || 1;
+    b.kx = dx / l * 4 / b.s; b.kz = dz / l * 4 / b.s;
+    sfx('hit'); this.burst(b.x, b.y + b.s, b.z, [0.95, 0.97, 1], 4, 2.5);
+    if (b.hp <= 0) this.kill(b);
+  },
+  kill(b) {
+    const F = FOES[b.type];
+    b.dead = true; G.kills++;
+    G.combo.n = G.combo.t > 0 ? G.combo.n + 1 : 1; G.combo.t = 2.6;
+    const mult = Math.min(5, G.combo.n);
+    G.score += F.pts * mult; G.coins += F.coins;
+    sfx('kill'); setTimeout(() => sfx('coin'), 90);
+    this.burst(b.x, b.y + b.s, b.z, F.col, 14 * b.s, 4.5); this.burst(b.x, b.y + b.s, b.z, [1, 0.85, 0.3], 5, 3);
+    if (mult >= 2) { $('combo').hidden = false; $('combo').textContent = `COMBO ×${mult}`; $('combo').style.animation = 'none'; void $('combo').offsetWidth; $('combo').style.animation = ''; }
+    if (!F.boss && Math.random() < 0.13) G.drops.push({ x: b.x, y: b.y + 1, z: b.z, vy: 3, t: 0 });
+    if (F.boss) { banner('THE BLOCK KING FALLS!', `+${F.pts * mult} points · +${F.coins} coins`, '#ffd36b', 3000); G.shake = 1.4; }
+    if (b.type === 'boomer' && b.fuse != null) this.explode(b.x, b.y + 1, b.z, 2.2, 0, true);
+  },
+  // ----- waves & shop -----
   startWave() {
     G.wave++; G.state = 'fight';
-    const n = WAVES[G.wave - 1];
-    for (let i = 0; i < n; i++) G.queue.push({ delay: 0.3 + i * 0.9, boss: G.wave === 3 && i === n - 1 });
-    banner('WAVE ' + G.wave, G.wave === 3 ? 'The Big Blocker is coming!' : n + ' Blockers incoming!', '#ff5280', 2200);
+    const plan = WAVES[G.wave - 1]; let i = 0;
+    for (const [type, n] of Object.entries(plan)) for (let k = 0; k < n; k++) G.queue.push({ type, delay: FOES[type].boss ? 0.2 : 0.8 + i++ * 0.7 });
+    sfx('wave');
+    const boss = plan.king;
+    banner(boss ? (G.wave === 10 ? 'FINAL WAVE: THE BLOCK KING!' : 'BOSS WAVE: THE BLOCK KING!') : `WAVE ${G.wave}`, waveText(G.wave - 1), boss ? '#ffd36b' : '#ff5280', 2600);
   },
-  spawn(boss) {
-    const c = CORNERS[Math.floor(Math.random() * 4)], x = c[0] + (Math.random() - 0.5) * 2, z = c[1] + (Math.random() - 0.5) * 2;
+  spawn(type) {
+    const F = FOES[type], sp = SPAWNS[Math.floor(Math.random() * SPAWNS.length)];
+    const x = sp[0] + (Math.random() - 0.5) * 2, z = sp[1] + (Math.random() - 0.5) * 2;
     const y = Math.max(17, E.ground_at(x, 30, z));
-    G.bots.push({ x, y, z, vy: 0, kx: 0, kz: 0, hp: boss ? 8 : 2, max: boss ? 8 : 2, s: boss ? 1.5 : 1, boss, speed: boss ? 2.4 : 2.2 + G.wave * 0.35, yaw: 0, cool: 0.6, stuck: 0, hit: 0, ground: true, phase: Math.random() * 6 });
+    let hp = F.hp + (G.wave > 6 && !F.boss ? 1 : 0);
+    if (F.boss && G.wave === 10) hp = 100;
+    G.bots.push({ type, x, y, z, vy: 0, kx: 0, kz: 0, hp, max: hp, s: F.s, yaw: 0, cool: 0.6, stuck: 0, side: 0, sideDir: 1, hit: 0, ground: true, phase: Math.random() * 6, throwT: 1.5 + Math.random(), slamT: 4, fuse: null });
+    this.burst(x, y + 1, z, [0.6, 0.3, 0.9], 10, 3);
   },
+  openShop() {
+    G.state = 'shop'; this.renderShop(); $('shop').hidden = false; releaseMouse();
+  },
+  renderShop() {
+    $('shopT').textContent = `SHOP · ${G.coins} coins`;
+    $('shopNext').textContent = `Next: wave ${G.wave + 1} of 10 · ${waveText(G.wave)}`;
+    const list = $('shopList'); list.innerHTML = '';
+    const head = (t) => { const h = document.createElement('h3'); h.className = 'sec'; h.textContent = t; list.appendChild(h); };
+    const item = (col, name, desc, price, ok, onBuy) => {
+      const b = document.createElement('button'); b.className = 'game shopitem'; b.disabled = !ok;
+      b.innerHTML = `<i style="background:${col}"></i><span>${name}<small>${desc}</small></span><em>${price}</em>`;
+      b.addEventListener('click', () => { onBuy(); sfx('buy'); this.hot(); this.renderShop(); });
+      list.appendChild(b);
+    };
+    head('Upgrades');
+    for (const u of UPGRADES) {
+      const lvl = G.up[u.key], max = u.costs.length, cost = u.costs[lvl];
+      item(u.col, u.name + (max > 1 ? ` ${'★'.repeat(lvl)}${'☆'.repeat(max - lvl)}` : ''), u.desc, lvl >= max ? 'owned ✓' : `${cost} coins`, lvl < max && G.coins >= cost, () => {
+        G.coins -= cost; G.up[u.key]++;
+        if (u.key === 'nugget') { G.nugget = { x: E.player_x() + 1, y: E.player_y(), z: E.player_z(), yaw: 0, vy: 0, bite: 0, moving: false, t: 0 }; say('<b>Nugget</b> joined the fight! Woof!', 5000); sfx('bark'); }
+        if (u.key === 'obsidian') { for (const k of G.placed.keys()) { const [x, y, z] = k.split(',').map(Number); setBlock(x, y, z, 11); G.placed.set(k, 3); } }
+      });
+    }
+    head('Supplies');
+    for (const s of SUPPLIES) item(s.col, s.name, s.desc, `${s.cost} coins`, G.coins >= s.cost, () => { G.coins -= s.cost; s.give(); });
+  },
+  closeShop() {
+    $('shop').hidden = true; G.state = 'count'; G.count = 3;
+    banner(`WAVE ${G.wave + 1} IN 3…`, waveText(G.wave), '#ff5280', 2600);
+    lockMouse();
+  },
+  // ----- enemies -----
   botStep(b, dt) {
-    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+    const F = FOES[b.type], px = E.player_x(), py = E.player_y(), pz = E.player_z();
     let dx = px - b.x, dz = pz - b.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-    b.yaw = Math.atan2(dx, dz); b.hit = Math.max(0, b.hit - dt); b.phase += dt * b.speed * 3;
+    b.yaw = Math.atan2(dx, dz); b.hit = Math.max(0, b.hit - dt);
     const damp = Math.pow(0.03, dt); b.kx *= damp; b.kz *= damp;
-    const walk = d > 0.9 ? b.speed : 0;
-    const vx = dx * walk + b.kx, vz = dz * walk + b.kz;
+    let walk = F.speed;
+    if (F.range) { if (d < F.range - 2) walk = -F.speed * 0.7; else if (d < F.range + 1) walk = 0; }
+    else if (d < 0.9 * b.s) walk = 0;
+    if (b.fuse != null) walk = 0;
+    // walk sideways for a moment when a wall is in the way
+    let mx = dx, mz = dz;
+    if (b.side > 0) { b.side -= dt; mx = -dz * b.sideDir; mz = dx * b.sideDir; walk = F.speed; }
+    b.phase += dt * Math.abs(walk) * 3;
+    const vx = mx * walk + b.kx, vz = mz * walk + b.kz;
     const free = (x, z, y) => !E.solid_at(x, y + 0.2, z) && !E.solid_at(x, y + 1.2, z) && (b.s < 1.2 || !E.solid_at(x, y + 2.2, z));
     let moved = false;
     const tryAxis = (nx, nz, lx, lz) => {
-      if (free(lx, lz, b.y)) { b.x = nx; b.z = nz; moved = true; return true; }
+      if (free(lx, lz, b.y)) { b.x = nx; b.z = nz; moved = true; return; }
       if (b.ground && free(lx, lz, b.y + 1) && !E.solid_at(b.x, b.y + 2.4 * b.s, b.z)) { b.vy = 7; b.ground = false; }
-      return false;
     };
     const nx = b.x + vx * dt, nz = b.z + vz * dt, r = 0.32 * b.s;
     tryAxis(nx, b.z, nx + Math.sign(vx) * r, b.z);
     tryAxis(b.x, nz, b.x, nz + Math.sign(vz) * r);
-    // stuck behind a player wall: smash it
-    if (!moved && walk > 0) b.stuck += dt; else b.stuck = Math.max(0, b.stuck - dt);
-    if (b.stuck > 1.1) {
+    if (!moved && Math.abs(walk) > 0) b.stuck += dt; else b.stuck = Math.max(0, b.stuck - dt);
+    if (b.stuck > (F.smash ? 0.6 : 1.1)) {
       b.stuck = 0;
-      const fx = Math.floor(b.x + dx * (r + 0.6)), fz = Math.floor(b.z + dz * (r + 0.6));
+      const fx = Math.floor(b.x + mx * (r + 0.6)), fz = Math.floor(b.z + mz * (r + 0.6));
+      let smashed = false;
       for (let yy = Math.floor(b.y); yy <= Math.floor(b.y + 1.8 * b.s); yy++) {
-        const key = fx + ',' + yy + ',' + fz;
-        if (G.placed.has(key)) { G.placed.delete(key); setBlock(fx, yy, fz, 0); }
+        const key = posKey(fx, yy, fz);
+        if (G.placed.has(key)) {
+          const left = G.placed.get(key) - (F.smash || 1); smashed = true;
+          if (left <= 0) { G.placed.delete(key); setBlock(fx, yy, fz, 0); this.burst(fx + 0.5, yy + 0.5, fz + 0.5, [0.5, 0.5, 0.5], 8, 3); } else G.placed.set(key, left);
+        }
       }
+      if (!smashed) { b.side = 0.9; b.sideDir = Math.random() < 0.5 ? 1 : -1; }
     }
     b.vy -= 22 * dt; b.y += b.vy * dt;
     const g = E.ground_at(b.x, b.y + 0.45, b.z);
-    if (b.y <= g) { b.y = g; b.vy = 0; b.ground = true; } else b.ground = false;
+    if (b.y <= g) {
+      if (b.slamming) { b.slamming = false; this.slam(b); }
+      b.y = g; b.vy = 0; b.ground = true;
+    } else b.ground = false;
     if (b.y < -5) { b.dead = true; return; }
-    if (d < 1.2 * b.s && Math.abs(py - b.y) < 1.7) {
+    const close = d < 1.2 * b.s && Math.abs(py - b.y) < 1.8 * b.s;
+    if (F.explode) {
+      if (b.fuse == null && d < 2.3) { b.fuse = 1.3; sfx('fuse'); }
+      if (b.fuse != null) { b.fuse -= dt; if (b.fuse <= 0) { b.dead = true; this.explode(b.x, b.y + 1, b.z, 3.2, F.dmg, false); } }
+      return;
+    }
+    if (F.range) {
+      b.throwT -= dt;
+      if (b.throwT <= 0 && d < F.range + 4) {
+        b.throwT = 2.4;
+        const sx = b.x, sy = b.y + 1.7, sz = b.z, tx = px, ty = py + 1, tz = pz;
+        const T = Math.max(0.45, d / 13), gr = 12;
+        G.shots.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / T, vy: (ty - sy) / T + 0.5 * gr * T, vz: (tz - sz) / T, t: 0 });
+        sfx('throw');
+      }
+    }
+    if (F.boss) {
+      b.slamT -= dt;
+      if (b.slamT <= 0 && b.ground && d < 14) { b.slamT = 5; b.vy = 10; b.ground = false; b.slamming = true; }
+      if (G.wave === 10) { G.summonT -= dt; if (G.summonT <= 0) { G.summonT = 9; G.queue.push({ type: 'speedy', delay: 0 }, { type: 'speedy', delay: 0.4 }); say('The <b>Block King</b> called for help!', 2500); } }
+    }
+    if (close && !F.range) {
       b.cool -= dt;
-      if (b.cool <= 0) { b.cool = 1; this.hurt(b.boss ? 2 : 1, dx, dz); }
+      if (b.cool <= 0) { b.cool = 1; this.hurt(F.dmg, dx, dz); }
     } else b.cool = Math.max(b.cool, 0.4);
   },
+  slam(b) {
+    sfx('slam'); G.shake = Math.max(G.shake, 1.2);
+    this.burst(b.x, b.y + 0.2, b.z, [0.7, 0.6, 0.4], 30, 7);
+    const px = E.player_x(), pz = E.player_z(), d = Math.hypot(px - b.x, pz - b.z);
+    if (d < 6.5 && E.player_on_ground()) { const l = d || 1; this.hurt(4, (px - b.x) / l, (pz - b.z) / l); }
+  },
+  nuggetStep(dt) {
+    const n = G.nugget; if (!n) return;
+    n.t += dt; n.bite = Math.max(0, n.bite - dt);
+    let target = null, best = 18;
+    for (const b of G.bots) { const d = Math.hypot(b.x - n.x, b.z - n.z); if (d < best) { best = d; target = b; } }
+    const tx = target ? target.x : E.player_x() + 1.5, tz = target ? target.z : E.player_z() + 1.5;
+    let dx = tx - n.x, dz = tz - n.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+    const want = target ? 0.9 + target.s * 0.4 : 2;
+    n.moving = d > want;
+    if (n.moving) {
+      n.yaw = Math.atan2(dx, dz);
+      const sp = 6.5, nx = n.x + dx * sp * dt, nz = n.z + dz * sp * dt;
+      const g = E.ground_at(nx, n.y + 1.2, nz);
+      if (g > 0 && g <= n.y + 1.1) { n.x = nx; n.z = nz; if (g > n.y) n.y = g; }
+      else if (n.vy === 0) n.vy = 7;
+    } else if (target && n.bite <= 0) {
+      n.bite = 0.5; sfx('bark'); this.damage(target, 1, n.x, n.z);
+    }
+    n.vy -= 22 * dt; n.y += n.vy * dt;
+    const g2 = E.ground_at(n.x, n.y + 0.45, n.z);
+    if (n.y <= g2) { n.y = g2; n.vy = 0; }
+    if (n.y < -3) { n.x = E.player_x(); n.y = E.player_y(); n.z = E.player_z(); n.vy = 0; }
+  },
+  golemStep(gm, dt) {
+    gm.cool -= dt;
+    let target = null, best = 14;
+    for (const b of G.bots) { const d = Math.hypot(b.x - gm.x, b.z - gm.z); if (d < best) { best = d; target = b; } }
+    if (!target) return;
+    gm.yaw = Math.atan2(target.x - gm.x, target.z - gm.z);
+    if (gm.cool > 0) return;
+    gm.cool = 0.7;
+    const sx = gm.x, sy = gm.y + 1.5, sz = gm.z, ty = target.y + target.s;
+    const T = best / 26;
+    G.balls.push({ x: sx, y: sy, z: sz, vx: (target.x - sx) / T, vy: (ty - sy) / T + 4.5 * T, vz: (target.z - sz) / T, t: 0, dmg: 1 });
+  },
+  // ----- every frame -----
   update(dt) {
-    G.t += dt; G.cool -= dt;
-    if (G.state === 'wait') { G.pause -= dt; if (G.pause <= 0) this.startWave(); }
-    for (const q of G.queue) { q.delay -= dt; if (q.delay <= 0) { q.done = true; this.spawn(q.boss); } }
+    G.t += dt; G.cool -= dt; G.shake = Math.max(0, G.shake - dt * 2.5);
+    G.combo.t -= dt; if (G.combo.t <= 0 && !$('combo').hidden) $('combo').hidden = true;
+    if (G.state === 'count') { G.count -= dt; if (G.count <= 0) this.startWave(); }
+    for (const q of G.queue) { q.delay -= dt; if (q.delay <= 0) { q.done = true; this.spawn(q.type); } }
     G.queue = G.queue.filter((q) => !q.done);
     for (const b of G.bots) { this.botStep(b, dt); if (G.over) return; }
+    this.nuggetStep(dt);
+    for (const gm of G.golemList) this.golemStep(gm, dt);
+    // player snowballs and fireballs
     for (const s of G.balls) {
       for (let k = 0; k < 3 && !s.dead; k++) {
-        const h = dt / 3; s.vy -= 9 * h; s.x += s.vx * h; s.y += s.vy * h; s.z += s.vz * h;
-        if (E.solid_at(s.x, s.y, s.z)) { s.dead = true; break; }
+        const h = dt / 3; s.vy -= (s.fire ? 6 : 9) * h; s.x += s.vx * h; s.y += s.vy * h; s.z += s.vz * h;
+        if (E.solid_at(s.x, s.y, s.z)) { s.dead = true; if (s.fire) this.explode(s.x, s.y, s.z, 2.8, s.dmg, true); else this.burst(s.x, s.y, s.z, [0.95, 0.97, 1], 3, 1.5); break; }
         for (const b of G.bots) {
           const r = 0.45 * b.s;
           if (!b.dead && Math.abs(s.x - b.x) < r && Math.abs(s.z - b.z) < r && s.y > b.y && s.y < b.y + 1.9 * b.s) {
-            b.hp--; b.hit = 0.18; b.kx = s.vx * 0.22 / b.s; b.kz = s.vz * 0.22 / b.s; s.dead = true;
-            if (b.hp <= 0) { b.dead = true; G.kills++; say(b.boss ? 'You knocked out the <b>Big Blocker</b>!' : 'Blocker knocked out!', 2500); }
+            s.dead = true;
+            if (s.fire) this.explode(s.x, s.y, s.z, 2.8, s.dmg, true); else this.damage(b, s.dmg, s.x - s.vx * 0.05, s.z - s.vz * 0.05);
             break;
           }
         }
       }
       s.t += dt; if (s.t > 3 || s.y < -5) s.dead = true;
     }
-    G.balls = G.balls.filter((s) => !s.dead); G.bots = G.bots.filter((b) => !b.dead);
-    G.regen += dt; if (G.regen > 5 && G.hp < 10) { G.hp++; G.regen = 0; }
-    if (G.state === 'fight' && !G.queue.length && !G.bots.length) {
-      if (G.wave >= 3) {
-        const best = store.get('warsBest'); const rec = best == null || G.t < best; if (rec) store.set('warsBest', G.t);
-        showResult('VICTORY!', '#ffd36b', 'You survived every wave of Blockers!', [['Blockers knocked out', G.kills], ['Hearts left', G.hp + ' of 10'], ['Time', fmtTime(G.t) + (rec ? ' (new best!)' : '')]]);
-      } else {
-        G.state = 'wait'; G.pause = 4.5; G.bricks += 16; this.hot();
-        banner(`WAVE ${G.wave} CLEARED!`, `+16 bricks. Wave ${G.wave + 1} in 4 seconds…`, '#6fbf4a', 3200);
+    G.balls = G.balls.filter((s) => !s.dead);
+    // thrown enemy blocks
+    const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+    for (const s of G.shots) {
+      for (let k = 0; k < 3 && !s.dead; k++) {
+        const h = dt / 3; s.vy -= 12 * h; s.x += s.vx * h; s.y += s.vy * h; s.z += s.vz * h;
+        if (Math.hypot(s.x - px, s.z - pz) < 0.55 && s.y > py && s.y < py + 1.9) { s.dead = true; const l = Math.hypot(s.vx, s.vz) || 1; this.hurt(2, s.vx / l, s.vz / l); break; }
+        if (E.solid_at(s.x, s.y, s.z)) {
+          s.dead = true; this.burst(s.x, s.y, s.z, [0.2, 0.45, 0.88], 6, 2.5);
+          const key = posKey(Math.floor(s.x), Math.floor(s.y), Math.floor(s.z));
+          if (G.placed.has(key)) { const left = G.placed.get(key) - 1; if (left <= 0) { G.placed.delete(key); setBlock(Math.floor(s.x), Math.floor(s.y), Math.floor(s.z), 0); } else G.placed.set(key, left); }
+        }
       }
+      s.t += dt; if (s.t > 4 || s.y < -5) s.dead = true;
     }
+    G.shots = G.shots.filter((s) => !s.dead);
+    if (G.over) return;
+    // heart pickups
+    for (const p of G.drops) {
+      p.t += dt; p.vy -= 15 * dt; p.y += p.vy * dt;
+      const g = E.ground_at(p.x, p.y + 0.4, p.z); if (p.y < g) { p.y = g; p.vy = 0; }
+      const d = Math.hypot(p.x - px, p.z - pz);
+      if (d < 3.5) { p.x += (px - p.x) * Math.min(1, dt * 6); p.z += (pz - p.z) * Math.min(1, dt * 6); }
+      if (d < 1.1 && Math.abs(p.y - py) < 2) { p.dead = true; G.hp = Math.min(20, G.hp + 4); Survival.hearts(); sfx('coin'); say('<b>+2 hearts</b>', 2000); }
+      if (p.t > 20) p.dead = true;
+    }
+    G.drops = G.drops.filter((p) => !p.dead);
+    // particles
+    for (const p of G.parts) { p.t += dt; p.vy -= 14 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; }
+    G.parts = G.parts.filter((p) => p.t < p.life);
+    G.bots = G.bots.filter((b) => !b.dead);
+    // healing when you have not been hit for a while
+    G.hurtT += dt; G.regen += dt;
+    if (G.hurtT > 4 && G.regen > 3 && G.hp < 20) { G.regen = 0; G.hp++; Survival.hearts(); }
+    // boss bar
+    const king = G.bots.find((b) => b.type === 'king');
+    $('bossbar').hidden = !king;
+    if (king) { $('bossFill').style.width = (king.hp / king.max * 100) + '%'; }
+    if (G.state === 'fight' && !G.queue.length && !G.bots.length) {
+      if (G.wave >= 10) return this.end(true);
+      const bonus = 5 + G.wave * 2; G.coins += bonus; G.state = 'cleared'; G.clearT = 1.8;
+      G.balls.length = 0; G.shots.length = 0;
+      banner(`WAVE ${G.wave} CLEARED!`, `+${bonus} bonus coins. Time to shop!`, '#6fbf4a', 1800); sfx('wave');
+    }
+    if (G.state === 'cleared') { G.clearT -= dt; if (G.clearT <= 0) this.openShop(); }
+  },
+  camera() {
+    if (!G || !(G.shake > 0)) return null;
+    const k = G.shake * 0.12, j = () => (Math.random() - 0.5) * k;
+    return { eye: [curEye[0] + j(), curEye[1] + j(), curEye[2] + j()], dir: curDir };
   },
   board() {
-    const hearts = '♥'.repeat(G.hp) + '<span style="opacity:.3">' + '♥'.repeat(10 - G.hp) + '</span>';
-    return `<h2>BLOCK WARS</h2><div class="big" style="color:#ff5280">${hearts}</div>${row('Wave', Math.max(1, G.wave) + ' of 3')}${row('Blockers left', G.bots.length + G.queue.length)}${row('Knocked out', G.kills)}${row('Bricks', G.bricks)}${row('In hand', ['Snowballs', 'Bricks', 'Pickaxe'][selected] || '—')}`;
+    const left = G.bots.length + G.queue.length;
+    const state = G.state === 'shop' ? 'Shopping' : G.state === 'count' ? 'Get ready!' : G.state === 'cleared' ? 'Cleared!' : `${left} enem${left === 1 ? 'y' : 'ies'} left`;
+    return `<h2>BLOCK WARS</h2><div class="big">Wave ${Math.max(1, G.wave)} of 10</div>${row('Status', state)}<hr>`
+      + `${row('Score', G.score)}${row('Best', Math.max(G.best, G.score))}${row('Coins', '<span style="color:var(--gold)">' + G.coins + '</span>')}${row('Knocked out', G.kills)}<hr>`
+      + `${row('Wall blocks', G.bricks)}${G.fireballs ? row('Fireballs', G.fireballs) : ''}${G.golemList.length ? row('Snow golems', G.golemList.length) : ''}${G.nugget ? row('Nugget', 'fighting!') : ''}${row('Sound (M)', muted ? 'off' : 'on')}`;
   },
   draw(V, I) {
     for (const b of G.bots) {
-      const o = [b.x, b.y, b.z], s = b.s, f = b.hit > 0;
-      const body = f ? [1, 1, 1] : b.boss ? [0.5, 0.12, 0.6] : [0.82, 0.2, 0.22];
-      const dark = f ? [1, 1, 1] : b.boss ? [0.3, 0.06, 0.38] : [0.5, 0.1, 0.12];
-      const skin = f ? [1, 1, 1] : [0.95, 0.78, 0.6];
+      const F = FOES[b.type], o = [b.x, b.y, b.z], f = b.hit > 0;
+      let s = b.s;
+      let blink = false;
+      if (b.fuse != null) { s *= 1 + (1.3 - b.fuse) * 0.18; blink = Math.floor(b.fuse * 10) % 2 === 0; }
+      const W = [1, 1, 1];
+      const body = f || blink ? W : F.col, dark = f || blink ? W : F.dark, skin = f ? W : b.type === 'boomer' ? F.col : [0.95, 0.78, 0.6];
       const sw = Math.sin(b.phase) * 0.18 * s;
       pushBox(V, I, o, [0.13 * s, 0.35 * s, sw], [0.1 * s, 0.35 * s, 0.1 * s], dark, b.yaw);
       pushBox(V, I, o, [-0.13 * s, 0.35 * s, -sw], [0.1 * s, 0.35 * s, 0.1 * s], dark, b.yaw);
       pushBox(V, I, o, [0, 1.02 * s, 0], [0.26 * s, 0.32 * s, 0.15 * s], body, b.yaw);
-      pushBox(V, I, o, [0.36 * s, 1.0 * s, -sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
+      const armUp = b.type === 'thrower' && b.throwT < 0.5 ? 0.35 * s : 0;
+      pushBox(V, I, o, [0.36 * s, 1.0 * s + armUp, -sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
       pushBox(V, I, o, [-0.36 * s, 1.0 * s, sw], [0.08 * s, 0.3 * s, 0.08 * s], body, b.yaw);
       pushBox(V, I, o, [0, 1.58 * s, 0], [0.22 * s, 0.22 * s, 0.22 * s], skin, b.yaw);
-      pushBox(V, I, o, [0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
-      pushBox(V, I, o, [-0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
-      if (b.boss) pushBox(V, I, o, [0, 1.86 * s, 0], [0.2 * s, 0.06 * s, 0.2 * s], [1, 0.82, 0.35], b.yaw, 3);
-      // health bar
-      const w = 0.4 * s, frac = b.hp / b.max;
-      pushBox(V, I, o, [0, 2.15 * s, 0], [w, 0.05, 0.02], [0.15, 0.15, 0.15], b.yaw);
-      pushBox(V, I, o, [-w + w * frac, 2.15 * s, 0.025], [w * frac, 0.045, 0.01], [0.3, 0.9, 0.3], b.yaw, 3);
+      if (b.type === 'boomer') {
+        // creeper-style face
+        pushBox(V, I, o, [0.09 * s, 1.64 * s, 0.225 * s], [0.05 * s, 0.05 * s, 0.01], [0.05, 0.1, 0.05], b.yaw);
+        pushBox(V, I, o, [-0.09 * s, 1.64 * s, 0.225 * s], [0.05 * s, 0.05 * s, 0.01], [0.05, 0.1, 0.05], b.yaw);
+        pushBox(V, I, o, [0, 1.5 * s, 0.225 * s], [0.04 * s, 0.08 * s, 0.01], [0.05, 0.1, 0.05], b.yaw);
+      } else {
+        pushBox(V, I, o, [0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
+        pushBox(V, I, o, [-0.09 * s, 1.62 * s, 0.225 * s], [0.04 * s, 0.04 * s, 0.01], [0.05, 0.05, 0.05], b.yaw);
+      }
+      if (b.type === 'thrower') pushBox(V, I, o, [0.36 * s, 1.4 * s + armUp, 0.05], [0.12, 0.12, 0.12], [0.3, 0.55, 0.95], b.yaw);
+      if (b.type === 'tank') { pushBox(V, I, o, [0, 1.08 * s, 0.16 * s], [0.22 * s, 0.22 * s, 0.01], [0.25, 0.25, 0.3], b.yaw); }
+      if (F.boss) {
+        pushBox(V, I, o, [0, 1.86 * s, 0], [0.24 * s, 0.06 * s, 0.24 * s], [1, 0.82, 0.25], b.yaw, 3);
+        for (const [cx, cz] of [[1, 1], [-1, 1], [1, -1], [-1, -1], [0, 1], [0, -1], [1, 0], [-1, 0]]) pushBox(V, I, o, [cx * 0.19 * s, 1.97 * s, cz * 0.19 * s], [0.04 * s, 0.06 * s, 0.04 * s], [1, 0.82, 0.25], b.yaw, 3);
+        pushBox(V, I, o, [0, 1.97 * s, 0.245 * s], [0.04 * s, 0.04 * s, 0.01], [0.9, 0.15, 0.2], b.yaw, 3);
+      }
+      if (!F.boss) {
+        const w = 0.4 * s, frac = Math.max(0, b.hp / b.max);
+        pushBox(V, I, o, [0, 2.15 * s, 0], [w, 0.05, 0.02], [0.15, 0.15, 0.15], b.yaw);
+        pushBox(V, I, o, [-w + w * frac, 2.15 * s, 0.025], [w * frac, 0.045, 0.01], [0.3, 0.9, 0.3], b.yaw, 3);
+      }
     }
-    for (const sb of G.balls) pushBox(V, I, [sb.x, sb.y, sb.z], [0, 0, 0], [0.1, 0.1, 0.1], [0.95, 0.97, 1], 0, 3);
+    for (const sb of G.balls) pushBox(V, I, [sb.x, sb.y, sb.z], [0, 0, 0], sb.fire ? [0.16, 0.16, 0.16] : [0.1, 0.1, 0.1], sb.fire ? [1, 0.5, 0.1] : [0.95, 0.97, 1], 0, 3);
+    for (const s of G.shots) pushBox(V, I, [s.x, s.y, s.z], [0, 0, 0], [0.13, 0.13, 0.13], [0.3, 0.55, 0.95], s.t * 6);
+    for (const p of G.parts) { const k = 1 - p.t / p.life; pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [p.s * k + 0.01, p.s * k + 0.01, p.s * k + 0.01], p.col, p.t * 5, 3); }
+    for (const p of G.drops) {
+      const o = [p.x, p.y + 0.35 + Math.sin(p.t * 4) * 0.08, p.z], a = p.t * 2, R = [0.92, 0.18, 0.2];
+      pushBox(V, I, o, [-0.07, 0.07, 0], [0.07, 0.07, 0.05], R, a, 3); pushBox(V, I, o, [0.07, 0.07, 0], [0.07, 0.07, 0.05], R, a, 3);
+      pushBox(V, I, o, [0, -0.02, 0], [0.1, 0.07, 0.05], R, a, 3); pushBox(V, I, o, [0, -0.1, 0], [0.04, 0.04, 0.05], R, a, 3);
+    }
+    for (const gm of G.golemList) {
+      const o = [gm.x, gm.y, gm.z];
+      pushBox(V, I, o, [0, 0.4, 0], [0.32, 0.4, 0.32], [0.95, 0.96, 0.98], gm.yaw);
+      pushBox(V, I, o, [0, 1.05, 0], [0.24, 0.25, 0.24], [0.95, 0.96, 0.98], gm.yaw);
+      pushBox(V, I, o, [0, 1.5, 0], [0.22, 0.2, 0.22], [0.95, 0.55, 0.1], gm.yaw);
+      pushBox(V, I, o, [0.08, 1.54, 0.225], [0.04, 0.04, 0.01], [0.2, 0.1, 0.02], gm.yaw, 3);
+      pushBox(V, I, o, [-0.08, 1.54, 0.225], [0.04, 0.04, 0.01], [0.2, 0.1, 0.02], gm.yaw, 3);
+      for (const sx of [1, -1]) pushBox(V, I, o, [sx * 0.36, 1.05, 0], [0.12, 0.03, 0.03], [0.4, 0.26, 0.12], gm.yaw);
+    }
+    const n = G.nugget;
+    if (n) {
+      const d = buildDog({ x: n.x, y: n.y, z: n.z, yaw: n.yaw, mode: 1, moving: n.moving, t: n.t, saddle: false });
+      const base = V.length / 9; for (const v of d.V) V.push(v); for (const i of d.I) I.push(i + base);
+    }
   },
 };
 const GAMES = { survival: Survival, build: Build, parkour: Parkour, wars: Wars };
@@ -1834,7 +2196,7 @@ function loadWorld(mode) {
 function resetHud() {
   $('minebar').hidden = true; $('prompt').hidden = true; $('ridebar').hidden = true;
   closeMenu(); closeCraft(); $('result').hidden = true; $('vote').hidden = true; clearInterval(voteTimer);
-  $('hearts').hidden = true; $('portalfx').style.opacity = '0'; mouseHeld = false; touchUse = false;
+  $('hearts').hidden = true; $('portalfx').style.opacity = '0'; $('shop').hidden = true; $('bossbar').hidden = true; $('combo').hidden = true; mouseHeld = false; touchUse = false;
   chatEl.innerHTML = ''; bannerT = 0; if (!joining) $('toast').hidden = true;
 }
 function loadGame(i) {
@@ -1870,7 +2232,8 @@ addEventListener('keydown', (e) => {
   keys[e.code] = true;
   const invKey = scene === 'survival' && (e.code === 'KeyE' || e.code === 'KeyC');
   if (invKey && $('menu').hidden && $('result').hidden && (!G || !G.over || !$('craft').hidden)) { $('craft').hidden ? openInv() : (closeCraft(), lockMouse()); }
-  else if ((e.code === 'KeyE' || e.code === 'KeyP') && $('result').hidden && $('craft').hidden && $('vote').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
+  if (e.code === 'KeyM') { muted = !muted; store.set('muted', muted); say(muted ? 'Sound off.' : 'Sound on.', 2000); }
+  else if ((e.code === 'KeyE' || e.code === 'KeyP') && $('result').hidden && $('craft').hidden && $('vote').hidden && $('shop').hidden) { $('menu').hidden ? openMenu() : (closeMenu(), lockMouse()); }
   if (scene === 'build' && G && !G.over && !anyDialog()) {
     if (e.code === 'KeyR') Build.page();
     if (e.code === 'KeyG') Build.brush();
@@ -1970,7 +2333,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { Wars, FOES, openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
