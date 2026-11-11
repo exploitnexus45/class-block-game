@@ -29,6 +29,7 @@ canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block
 #vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(0,0,0,.3) 100%); }
 .panel { background: var(--panel); box-shadow: inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo); }
 
+#vignette { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 58%, rgba(10,8,20,.32) 100%); }
 #crosshair { position: fixed; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); pointer-events: none; }
 #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,.85); mix-blend-mode: difference; }
 #crosshair::before { left: 8px; top: 0; width: 2px; height: 18px; }
@@ -165,6 +166,7 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 <body>
 <canvas id="gl" aria-label="3D lobby world"></canvas>
 <div id="vignette"></div>
+<div id="vignette" aria-hidden="true"></div>
 <div id="crosshair" hidden></div>
 
 <aside id="board" class="panel" aria-label="Lobby scoreboard">
@@ -322,51 +324,88 @@ const FHEAD = GL2 ? '#version 300 es\nprecision highp float;\n#define IN in\nout
 
 const VS = VHEAD + `
 IN vec3 aPos; IN vec3 aCol; IN vec3 aAux;
-uniform mat4 uVP; uniform vec3 uEye; uniform float uCloud;
+uniform mat4 uVP; uniform vec3 uEye; uniform float uCloud; uniform float uWave;
 OUT vec3 vPos; OUT vec3 vCol; OUT vec3 vAux; OUT float vDist; OUT vec3 vView;
-void main(){ vec3 p=aPos; if(abs(aAux.y-12.0)<0.5) p.x+=uCloud; vPos=p; vCol=aCol; vAux=aAux; vView=p-uEye; vDist=length(vView); gl_Position=uVP*vec4(p,1.0); }`;
+void main(){ vec3 p=aPos; float mm=floor(aAux.y+0.5);
+  if(abs(mm-12.0)<0.5) p.x+=uCloud;
+  vPos=p;
+  if(abs(mm-5.0)<0.5){ float w=sin(uWave*1.6+aPos.x*0.9+aPos.y*0.7+aPos.z*0.5); p.x+=w*0.035; p.z+=cos(uWave*1.25+aPos.z*0.8+aPos.y*0.6)*0.03; p.y+=w*0.015; }
+  if(mm>13.5 && mm<15.5){ float k=aAux.z*aAux.z; float g=sin(uWave*0.7+aPos.x*0.15+aPos.z*0.1); p.x+=(sin(uWave*2.3+aPos.x*1.7+aPos.z*0.9)*0.06+g*0.08)*k; p.z+=cos(uWave*1.9+aPos.z*1.3+aPos.x*0.4)*0.06*k; } vCol=aCol; vAux=aAux; vView=p-uEye; vDist=length(vView); gl_Position=uVP*vec4(p,1.0); }`;
 const FS = FHEAD + `
 IN vec3 vPos; IN vec3 vCol; IN vec3 vAux; IN float vDist; IN vec3 vView;
 uniform float uTime; uniform vec3 uFog; uniform float uLight; uniform float uNB;
 float h3(vec3 p){ p=fract(p*0.3183099+0.1); p*=17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
 bool is(float m, float k){ return abs(m-k)<0.5; }
+// smooth value noise, so 400x detail has no blocky 32-pixel grid
+float vn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1.0,0.0,0.0)),f.x),mix(h3(i+vec3(0.0,1.0,0.0)),h3(i+vec3(1.0,1.0,0.0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0.0,0.0,1.0)),h3(i+vec3(1.0,0.0,1.0)),f.x),mix(h3(i+vec3(0.0,1.0,1.0)),h3(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z); }
+const float RES=400.0; // texture pixels per block face
 void main(){
   float d=floor(vAux.x+0.5); float m=floor(vAux.y+0.5); float lt=vAux.z;
   if(is(m,12.0)){ float f=smoothstep(140.0,260.0,vDist); FRAG=vec4(mix(vCol*(0.82+0.18*lt)*max(uLight,0.22),uFog,f*0.7),0.86*(1.0-f)); return; }
   if(is(m,13.0)){ FRAG=vec4(0.0,0.0,0.0,0.34*vCol.r); return; }
+  if(m>13.5 && m<15.5){
+    float u=vAux.x, v=vAux.z, al=0.0; vec3 pc=vCol*(0.5+0.62*v);
+    float seed=h3(floor(vPos*0.999)+vec3(3.0));
+    if(is(m,14.0)){
+      for(int k=0;k<6;k++){ float fk=float(k);
+        float cx=0.1+fk*0.16+(h3(vec3(fk,seed*9.0,2.0))-0.5)*0.08;
+        float hh=0.45+0.55*h3(vec3(fk,seed*7.0,5.0)); float bend=(h3(vec3(fk,seed,1.0))-0.5)*0.3;
+        float w=0.075*(1.0-v/hh); if(v<hh && abs(u-cx-v*v*bend)<w) al=1.0; }
+    } else {
+      pc=vec3(0.24,0.52,0.18)*(0.55+0.55*v);
+      if(abs(u-0.5-sin(v*5.0)*0.015)<0.03 && v<0.66) al=1.0;
+      vec2 lf=vec2(u-0.5,v-0.28); if(abs(lf.y-abs(lf.x)*0.5)<0.035 && abs(lf.x)<0.17) al=1.0;
+      vec2 q2=vec2(u-0.5,v-0.75); float r=length(q2), an=atan(q2.y,q2.x); float pet=0.15+0.06*cos(an*5.0+seed*6.0);
+      if(r<pet){ al=1.0; pc = r<0.055 ? vec3(1.0,0.82,0.2) : vCol*(0.78+0.4*(1.0-r/pet)); }
+    }
+    if(al<0.5) discard;
+    vec3 col=pc*max(uLight,0.25)*vec3(mix(0.75,1.0,uLight),mix(0.8,1.0,uLight),1.0);
+    col=mix(col,uFog,smoothstep(30.0,78.0,vDist));
+    col=mix(col,col*col*(3.0-2.0*col),0.22);
+    FRAG=vec4(col,1.0); return;
+  }
   vec2 uv; float ax;
   if(d<1.5){uv=vPos.zy; ax=vPos.x;} else if(d<3.5){uv=vPos.xz; ax=vPos.y;} else {uv=vPos.xy; ax=vPos.z;}
   float axl=floor(ax+((mod(d,2.0)<0.5)?-0.5:0.5));
-  vec2 q=floor(uv*32.0); // 32x32 pixels per block face
-  float n=h3(vec3(q,axl*7.0+d));
-  vec2 fq=(mod(q,32.0)+0.5)/32.0;
+  vec2 Q=uv*32.0; // pattern scale (features sized like before)
+  vec2 q=floor(uv*RES); // 400x400 pixels per block face
+  vec2 fq=(mod(q,RES)+0.5)/RES;
+  // three layers of detail: smooth blotches, medium speckle and the fine 400x grain.
+  // Far away the fine layers fade out so blocks do not sparkle.
+  float fF=smoothstep(1.5,6.0,vDist), fM=smoothstep(6.0,22.0,vDist);
+  float nS=vn(vec3(Q,axl*7.0+d)), nM=vn(vec3(Q*3.0,axl*5.0+d+9.0)), nF=h3(vec3(q,axl*7.0+d));
+  float n=nS*0.5+mix(nM,nS,fM)*0.3+mix(nF,nS,fF)*0.2;
+  n=clamp((n-0.5)*1.9+0.5,0.0,1.0);
   vec3 c=vCol; float a=1.0;
   if(is(m,0.0)){
     if(d>1.5 && d<3.5 && abs(vCol.r-0.66)<0.02 && abs(vCol.g-0.52)<0.02 && abs(vCol.b-0.33)<0.02){
       vec2 p=fq-0.5;
       if(max(abs(p.x),abs(p.y))>0.43){ c=vec3(0.4,0.28,0.17)*(0.78+0.3*n); }
-      else { float ring=fract(length(p)*9.0+(h3(vec3(floor(q/2.0),axl))-0.5)*0.25); c*=(ring<0.32?0.8:1.0)*(0.94+0.1*n); if(length(p)<0.05) c*=0.82; }
+      else { float ring=fract(length(p)*9.0+(vn(vec3(Q*0.5,axl))-0.5)*0.25); c*=(ring<0.32?0.8:1.0)*(0.94+0.1*n); if(length(p)<0.05) c*=0.82; }
     } else c*=0.88+0.22*n;
+    if(d>1.5 && d<2.5 && vCol.g>vCol.r*1.4 && vCol.g>vCol.b*1.8){ float bn=0.5+0.25*sin(vPos.x*0.19+vPos.z*0.11)+0.25*sin(vPos.z*0.23-vPos.x*0.07); c*=mix(vec3(0.86,1.05,1.02),vec3(1.1,1.02,0.78),bn); }
   }
-  else if(is(m,4.0)){ float edge=0.76+0.14*h3(vec3(floor(q.x/2.0),3.0,axl)); if(fq.y>edge) c=vec3(0.36,0.62,0.24); c*=0.88+0.22*n; }
-  else if(is(m,5.0)){ c*=0.72+0.5*n; if(n<0.14) c*=0.5; }
+  else if(is(m,4.0)){ float edge=0.76+0.14*vn(vec3(Q.x*0.5,3.0,axl)); if(fq.y>edge) c=vec3(0.36,0.62,0.24); c*=0.88+0.22*n; }
+  else if(is(m,5.0)){ c*=0.72+0.5*n; if(n<0.14) c*=0.5; float bn=0.5+0.25*sin(vPos.x*0.19+vPos.z*0.11)+0.25*sin(vPos.z*0.23-vPos.x*0.07); c*=mix(vec3(0.88,1.05,1.0),vec3(1.12,1.0,0.75),bn); if(vAux.x>1.5&&vAux.x<2.5) c*=1.12; }
   else if(is(m,6.0)){
     float row=floor(fq.y*4.0), off=h3(vec3(row,axl,7.0));
-    float grain=h3(vec3(floor((q.x+off*32.0)/6.0),q.y,axl+row));
+    float grain=vn(vec3((Q.x+off*32.0)/6.0,uv.y*110.0,axl+row));
     c*=0.86+0.14*grain+0.04*n;
-    if(h3(vec3(floor(q.x/9.0),q.y,axl*1.3))>0.86) c*=0.86;
+    if(vn(vec3(Q.x/9.0,uv.y*70.0,axl*1.3))>0.78) c*=0.88;
     if(fract(fq.y*4.0)<0.125) c*=0.6;
     if(fract(fq.x+off)<0.035) c*=0.68;
   }
   else if(is(m,7.0)){
-    float colm=floor(q.x/3.0), rn=h3(vec3(colm,0.0,axl));
-    float seg=floor((q.y+rn*23.0)/(5.0+floor(rn*7.0)));
-    c*=0.8+0.3*h3(vec3(colm,seg,axl));
-    if(fract(q.x/3.0)<0.34) c*=0.62;
-    c*=0.94+0.1*n;
+    float colm=floor(Q.x/3.0), rn=h3(vec3(colm,0.0,axl));
+    float seg=(Q.y+rn*23.0)/(5.0+floor(rn*7.0));
+    c*=0.8+0.3*vn(vec3(colm,seg,axl));
+    float cr=fract(Q.x/3.0); c*=mix(0.7,1.0,smoothstep(0.18,0.38,cr)*(1.0-smoothstep(0.92,1.0,cr)*0.4));
+    c*=0.94+0.1*n; lt=mix(lt,1.0,0.4); // bark: light bounces in under the leaves
   }
   else if(is(m,8.0)){ float r=floor(fq.y*2.0); bool mortar=fract(fq.y*2.0)<0.1||fract(fq.x*2.0+mod(r,2.0)*0.5)<0.07; c*=mortar?0.68:(0.92+0.12*n); }
-  else if(is(m,9.0)){ c*=0.68+0.45*h3(vec3(floor(q/6.0),axl)); if(n<0.15) c*=0.78; }
+  else if(is(m,9.0)){ c*=0.68+0.45*vn(vec3(Q/6.0,axl)); if(n<0.15) c*=0.78; }
   else if(is(m,10.0)){
     vec3 id=vec3(floor(uv),axl*1.7+d);
     float ore=0.0;
@@ -385,7 +424,7 @@ void main(){
     float r=floor(fq.y*5.0); bool mortar=fract(fq.y*5.0)<0.16||fract(fq.x*2.5+mod(r,2.0)*0.5)<0.08;
     c = mortar ? vec3(0.13,0.05,0.06) : vec3(0.33,0.14,0.15)*(0.82+0.3*n);
   }
-  else if(is(m,11.0)){ c*=0.9+0.12*h3(vec3(floor(q/2.0),axl))+0.04*sin((q.x+q.y)*1.6); }
+  else if(is(m,11.0)){ c*=0.9+0.12*vn(vec3(Q/2.0,axl))+0.04*sin((Q.x+Q.y)*1.6)*(1.0-fF*0.5)+0.05*(nF-0.5)*(1.0-fF); }
   else if(is(m,3.0)){ c*=0.9+0.2*n; lt=1.3; }
   else if(is(m,1.0)){
     float w=sin(uv.x*3.0+uTime*2.0)*sin(uv.y*2.6-uTime*1.7); c*=0.9+0.14*w+0.08*n; a=0.72;
@@ -400,9 +439,17 @@ void main(){
   else if(is(m,2.0)){ vec2 g=floor(uv*32.0)/32.0; float s=sin(g.x*9.0+uTime*3.0)+sin(g.y*11.0-uTime*2.4)+sin((g.x+g.y)*7.0+uTime*1.9); c=c*(0.7+0.17*s)+0.12*n; lt=1.0; a=0.8; }
   if(m<0.5||m>3.5) c*=0.95+0.09*h3(vec3(floor(uv),axl*3.1+d));
   vec3 col=c*lt;
-  if(!(is(m,3.0)||is(m,2.0))) col*=uLight*vec3(mix(0.75,1.0,uLight),mix(0.8,1.0,uLight),1.0);
-  col=mix(vec3(dot(col,vec3(0.299,0.587,0.114))),col,1.1)*vec3(1.02,1.0,0.97);
-  col=mix(col,uFog,smoothstep(30.0,78.0,vDist));
+  float day=uNB<0.5 ? smoothstep(0.6,1.0,uLight) : 0.0;
+  if(!(is(m,3.0)||is(m,2.0))){
+    col*=uLight*vec3(mix(0.75,1.0,uLight),mix(0.8,1.0,uLight),1.0);
+    col*=mix(vec3(1.0), mix(vec3(0.92,0.97,1.1),vec3(1.06,1.0,0.92),smoothstep(0.42,0.95,lt)), day);
+    col+=c*day*0.07*vec3(0.85,0.92,1.0); // a little sky light fills in the shadows
+  } else col*=1.12; // glowing blocks shine a bit brighter
+  col=mix(vec3(dot(col,vec3(0.299,0.587,0.114))),col,1.14)*vec3(1.02,1.0,0.97);
+  vec3 vd=normalize(vView); float sg=max(dot(vd,normalize(vec3(0.45,0.55,0.7))),0.0);
+  vec3 fogc=uFog+day*vec3(1.0,0.86,0.62)*pow(sg,5.0)*0.22;
+  col=mix(col,fogc,smoothstep(30.0,78.0,vDist));
+  col=mix(col,col*col*(3.0-2.0*col),0.22);
   FRAG=vec4(col,a);
 }`;
 const SKY_VS = VHEAD + `
@@ -416,7 +463,7 @@ void main(){
   vec3 zen=uZen, low=uLow;
   vec3 c = d.y>0.0 ? mix(uFog,zen,pow(clamp(d.y,0.0,1.0),0.6)) : mix(uFog,low,clamp(-d.y*3.0,0.0,1.0));
   vec3 sd=normalize(vec3(0.45,0.55,0.7)); vec3 sx=normalize(cross(sd,vec3(0,1,0))); vec3 sy=cross(sx,sd);
-  float sg=max(dot(d,sd),0.0); c+=uDay*(vec3(1.0,0.86,0.62)*pow(sg,40.0)*0.45+vec3(1.0,0.92,0.75)*pow(sg,5.0)*0.12);
+  float sg=max(dot(d,sd),0.0); c+=uDay*(vec3(1.0,0.86,0.62)*pow(sg,40.0)*0.5+vec3(1.0,0.86,0.62)*pow(sg,5.0)*0.22+vec3(1.0,0.95,0.85)*pow(sg,300.0)*0.6);
   if(uNight>0.01){
     if(d.y>0.0){ vec3 sp=floor(d*150.0); float st=h2(sp.xz+sp.y*7.31); if(st>0.996) c=mix(c,vec3(1.0,1.0,0.95),uNight*clamp((st-0.996)*250.0,0.0,1.0)*clamp(d.y*4.0,0.0,1.0)); }
     vec3 md=normalize(vec3(-0.45,0.5,-0.7)); vec3 mxx=normalize(cross(md,vec3(0,1,0))); vec3 myy=cross(mxx,md);
@@ -428,6 +475,7 @@ void main(){
     p=mod(p,12000.0);
     vec2 cell=floor(p/12.0); float k=h2(cell);
     if(k>0.78){ float fade=clamp(1.0-t/600.0,0.0,1.0); c=mix(c,vec3(1.0),0.85*fade); } }
+  c=mix(c,c*c*(3.0-2.0*c),0.22);
   FRAG=vec4(c,1.0);
 }`;
 
@@ -668,7 +716,86 @@ function uploadWorld() {
   gl.bindBuffer(gl.ARRAY_BUFFER, world.vb); gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, world.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m, E.index_ptr(), nIdx), gl.DYNAMIC_DRAW);
   gl.bindVertexArray(null);
+  buildPlants();
 }
+// grass tufts and flowers on top of grass blocks (drawn, not real blocks, so they never get in the way)
+const FLOWER_COLS = [[0.92, 0.18, 0.2], [1, 0.82, 0.15], [0.35, 0.5, 1], [0.97, 0.97, 0.97], [0.95, 0.45, 0.75], [1, 0.55, 0.15], [0.7, 0.35, 0.95]];
+let plantGeo = null, plantCount = 0;
+function plantHash(x, z, k) { let h = (x * 374761393 + z * 668265263 + k * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function buildPlants() {
+  if (!plantGeo) plantGeo = makeVao();
+  const V = [], I = [];
+  AMB.flowers = []; AMB.leaves = [];
+  for (let x = 1; x < 63; x++) for (let z = 1; z < 63; z++) for (let y = 18; y < 39; y++) if (E.get_block(x, y, z) === 6 && !E.get_block(x, y - 1, z)) AMB.leaves.push([x, y, z]);
+  if (typeof scene !== 'undefined' && (scene === 'parkour' || scene === 'spleef' || scene === 'wars' || (scene === 'survival' && G && G.dim === 'nether'))) { plantCount = 0; return; }
+  for (let x = 1; x < 63; x++) for (let z = 1; z < 63; z++) {
+    let y = 39; while (y > 0 && !E.get_block(x, y, z)) y--;
+    if (E.get_block(x, y, z) !== 1) continue;
+    const r = plantHash(x, z, 1);
+    const flower = false, tuft = false; // no flowers or grass tufts
+    if (!flower && !tuft) continue;
+    const cx = x + 0.5 + (plantHash(x, z, 2) - 0.5) * 0.4, cz = z + 0.5 + (plantHash(x, z, 3) - 0.5) * 0.4, by = y + 1;
+    const h = flower ? 0.85 : 0.5 + plantHash(x, z, 4) * 0.35, w = flower ? 0.38 : 0.45, a0 = plantHash(x, z, 5) * 3.14;
+    const col = flower ? FLOWER_COLS[Math.floor(plantHash(x, z, 6) * FLOWER_COLS.length)] : [0.38 + plantHash(x, z, 7) * 0.08, 0.64, 0.25];
+    const mat = flower ? 15 : 14;
+    if (flower) AMB.flowers.push([cx, by + 0.8, cz, col]);
+    for (const a of [a0, a0 + Math.PI / 2]) {
+      const dx = Math.cos(a) * w, dz = Math.sin(a) * w, b = V.length / 9;
+      V.push(cx - dx, by, cz - dz, ...col, 0, mat, 0, cx + dx, by, cz + dz, ...col, 1, mat, 0,
+        cx + dx, by + h, cz + dz, ...col, 1, mat, 1, cx - dx, by + h, cz - dz, ...col, 0, mat, 1);
+      I.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    }
+  }
+  plantCount = I.length;
+  gl.bindVertexArray(plantGeo.vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, plantGeo.vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(V), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, plantGeo.ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(I), gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+}
+// ambient life: butterflies and falling leaves in the lobby, fireflies on Survival nights
+const AMB = { flowers: [], leaves: [], flies: [], fall: [], bugs: [], leafT: 0, night: 0 };
+function ambientStep(dt, V, I) {
+  const lobbyNow = scene === 'lobby', surv = scene === 'survival' && G && G.dim === 'over';
+  if (!lobbyNow && !surv) { AMB.flies.length = 0; AMB.fall.length = 0; AMB.bugs.length = 0; return; }
+  const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+  // butterflies flutter between flowers (daytime)
+  const wantFlies = 0; // no butterflies
+  while (AMB.flies.length < wantFlies) { const f = AMB.flowers[Math.floor(Math.random() * AMB.flowers.length)]; AMB.flies.push({ x: f[0], y: f[1] + 1, z: f[2], tgt: f, wait: 0, ph: Math.random() * 6, col: FLOWER_COLS[Math.floor(Math.random() * FLOWER_COLS.length)], yaw: 0 }); }
+  if (AMB.flies.length > wantFlies) AMB.flies.length = wantFlies;
+  for (const b of AMB.flies) {
+    b.ph += dt * 14;
+    const t = b.tgt, dx = t[0] - b.x, dy = t[1] + 0.25 - b.y, dz = t[2] - b.z, d = Math.hypot(dx, dy, dz);
+    if (d < 0.35) { b.wait -= dt; if (b.wait <= 0) { b.tgt = AMB.flowers[Math.floor(Math.random() * AMB.flowers.length)]; if (Math.hypot(b.tgt[0] - b.x, b.tgt[2] - b.z) > 14) b.tgt = t; b.wait = 1.5 + Math.random() * 3; } }
+    else { const sp = 1.6; b.x += dx / d * sp * dt + Math.sin(b.ph * 0.31) * dt * 0.8; b.z += dz / d * sp * dt + Math.cos(b.ph * 0.27) * dt * 0.8; b.y += (dy / d * sp + Math.sin(b.ph * 0.5) * 0.9 + (d > 2 ? 0.6 : 0)) * dt; b.yaw = Math.atan2(dx, dz); }
+    const flap = Math.abs(Math.sin(b.ph)) * (d < 0.35 ? 0.4 : 1);
+    pushBox(V, I, [b.x, b.y, b.z], [0, 0, 0], [0.015, 0.015, 0.06], [0.12, 0.1, 0.08], b.yaw);
+    for (const s of [1, -1]) pushBox(V, I, [b.x, b.y, b.z], [s * (0.02 + 0.055 * flap), 0.02 + 0.05 * (1 - flap), 0], [0.055 * flap + 0.01, 0.006 + 0.05 * (1 - flap), 0.05], b.col, b.yaw, 3);
+  }
+  // falling leaves under trees near you
+  AMB.leafT -= dt;
+  if (AMB.leafT <= 0 && AMB.leaves.length && AMB.fall.length < 26) {
+    AMB.leafT = lobbyNow ? 0.12 : 0.3;
+    for (let k = 0; k < 4; k++) { const l = AMB.leaves[Math.floor(Math.random() * AMB.leaves.length)]; if (Math.hypot(l[0] - px, l[2] - pz) < 20) { AMB.fall.push({ x: l[0] + Math.random(), y: l[1] - 0.05, z: l[2] + Math.random(), t: 0, ph: Math.random() * 6, col: Math.random() < 0.25 ? [0.85, 0.6, 0.2] : [0.3 + Math.random() * 0.15, 0.55, 0.2] }); break; } }
+  }
+  for (const f of AMB.fall) {
+    f.t += dt; f.y -= 0.55 * dt; f.x += Math.sin(f.t * 2.1 + f.ph) * 0.7 * dt; f.z += Math.cos(f.t * 1.7 + f.ph) * 0.4 * dt;
+    if (E.solid_at(f.x, f.y - 0.02, f.z)) f.y += 0.55 * dt, f.land = (f.land || 0) + dt;
+    pushBox(V, I, [f.x, f.y, f.z], [0, 0, 0], [0.07, 0.008, 0.05], f.col, f.t * 2 + f.ph);
+  }
+  AMB.fall = AMB.fall.filter((f) => f.t < 14 && !(f.land > 2.5));
+  // fireflies on Survival nights
+  const wantBugs = surv && AMB.night > 0.4 ? 22 : 0;
+  while (AMB.bugs.length < wantBugs) { const a = Math.random() * 6.28, r = 3 + Math.random() * 11, x = px + Math.sin(a) * r, z = pz + Math.cos(a) * r; AMB.bugs.push({ x, z, y: E.ground_at(x, py + 4, z) + 0.6 + Math.random() * 1.6, ph: Math.random() * 6 }); }
+  if (AMB.bugs.length > wantBugs) AMB.bugs.length = wantBugs;
+  for (const b of AMB.bugs) {
+    b.ph += dt; b.x += Math.sin(b.ph * 0.7) * 0.5 * dt; b.z += Math.cos(b.ph * 0.6) * 0.5 * dt; b.y += Math.sin(b.ph * 1.3) * 0.25 * dt;
+    if (Math.hypot(b.x - px, b.z - pz) > 16) { const a = Math.random() * 6.28; b.x = px + Math.sin(a) * 8; b.z = pz + Math.cos(a) * 8; b.y = E.ground_at(b.x, py + 4, b.z) + 1; }
+    const glow = Math.max(0, Math.sin(b.ph * 2.3)) ** 2; if (glow < 0.05) continue;
+    const sz = 0.03 + 0.03 * glow;
+    pushBox(V, I, [b.x, b.y, b.z], [0, 0, 0], [sz, sz, sz], [0.75 + 0.25 * glow, 1, 0.35], 0, 3);
+  }
+}
+function drawPlants() { if (plantCount && plantGeo) { gl.bindVertexArray(plantGeo.vao); gl.drawElements(gl.TRIANGLES, plantCount, gl.UNSIGNED_INT, 0); } }
 
 // ---------- bigger lobby + race track ----------
 // Rounded-square distance from the island centre: straights at 26 blocks out, corners rounded.
@@ -3575,8 +3702,10 @@ const Duo = {
       gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
       gl.useProgram(prog.p);
       gl.uniformMatrix4fv(prog.u.uVP, false, VP); gl.uniform3fv(prog.u.uEye, eye); gl.uniform1f(prog.u.uTime, T); gl.uniform3fv(prog.u.uFog, fog); gl.uniform1f(prog.u.uLight, lightK); gl.uniform1f(prog.u.uNB, 0);
+      gl.uniform1f(prog.u.uWave, T);
       gl.bindVertexArray(world.vao); gl.depthMask(true); gl.disable(gl.BLEND);
       gl.drawElements(gl.TRIANGLES, nOpaque, gl.UNSIGNED_INT, 0);
+      drawPlants();
       // both corgis, each with a flag on a pole in their color
       for (const q of G.p) {
         const dg = buildDog({ x: q.x, y: q.y, z: q.z, yaw: q.yaw, mode: q.moving ? 3 : 0, moving: q.moving, t: q.t, saddle: true });
@@ -3982,8 +4111,10 @@ function frame(now) {
   gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE);
   gl.useProgram(prog.p);
   gl.uniformMatrix4fv(prog.u.uVP, false, VP); gl.uniform3fv(prog.u.uEye, eye); gl.uniform1f(prog.u.uTime, T); gl.uniform3fv(prog.u.uFog, fog); gl.uniform1f(prog.u.uLight, lightK); gl.uniform1f(prog.u.uNB, nether ? 1 : 0);
+  gl.uniform1f(prog.u.uWave, T);
   gl.bindVertexArray(world.vao); gl.depthMask(true); gl.disable(gl.BLEND);
   gl.drawElements(gl.TRIANGLES, nOpaque, gl.UNSIGNED_INT, 0);
+  drawPlants();
   // dog (lobby only)
   let dogState = null;
   if (lobby) {
@@ -4005,6 +4136,7 @@ function frame(now) {
   {
     const V = [], I = [];
     if ((scene === 'wars' || scene === 'survival' || scene === 'parkour' || scene === 'spleef') && G) GAMES[scene].draw(V, I);
+    AMB.night = nightK; ambientStep(dt, V, I);
     fxStep(dt);
     for (const p of FX) { const k = 1 - p.t / p.life * 0.5; pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [p.s * k, p.s * k, p.s * k], p.col, p.t * 3); }
     if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES);
