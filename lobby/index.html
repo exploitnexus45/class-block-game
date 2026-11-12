@@ -177,6 +177,8 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
   <div class="row"><span>Speed</span><span id="speed">0.0 b/s</span></div>
   <div class="row"><span>Best lap</span><span id="bestlap">—</span></div>
   <div class="row"><span>Ghost Nugget (H)</span><span id="ghostst">on</span></div>
+  <div class="row"><span>Golden bones</span><span id="bonesN" style="color:#ffd36b">0</span></div>
+  <div class="row"><span>Hidden bones</span><span id="hidN">0 of 10</span></div>
   <div class="row"><span>Sky islands</span><span id="skycount">0 of 4</span></div>
   <hr>
   <div class="row"><span><i class="sw" style="background:var(--p0)"></i>Survival</span><span>east</span></div>
@@ -538,6 +540,14 @@ function rotY(p, a, pv) { const x = p[0]-pv[0], z = p[2]-pv[2], c = Math.cos(a),
 function buildDog(st) {
   const V = [], I = [];
   const cy = Math.cos(st.yaw), sy = Math.sin(st.yaw);
+  const [CORGI, CORGI_D, CREAM] = furCols(st.t || 0);
+  // tricks spin the whole dog around its middle and hop it up
+  let TR = null;
+  if (st.trick) {
+    const e = Math.min(1, st.trick.t / 0.9), a = Math.PI * 2 * (0.5 - 0.5 * Math.cos(Math.PI * e)), hop = Math.sin(Math.PI * e) * (st.trick.kind === 'hop' ? 1.6 : 0.9), P = [0, 0.4, 0];
+    const k = st.trick.kind, rot = k === 'flip' ? (p) => rotX(p, -a, P) : k === 'spin' ? (p) => rotY(p, a, P) : k === 'roll' ? (p) => rotZ(p, a, P) : (p) => rotY(p, a * 0.5, P);
+    TR = (p) => { const q = rot(p); return [q[0], q[1] + hop, q[2]]; };
+  }
   const part = (c, h, col, xf) => {
     for (let f = 0; f < 6; f++) {
       const n = FACES[f], a = n.findIndex(v => v !== 0), u = (a+1)%3, v = (a+2)%3, base = V.length / 9;
@@ -547,7 +557,7 @@ function buildDog(st) {
       for (let k = 0; k < 4; k++) {
         const du = (k === 1 || k === 2) ? 1 : -1, dv = k >= 2 ? 1 : -1;
         const p = [c[0], c[1], c[2]]; p[a] += n[a] * h[a]; p[u] += du * h[u]; p[v] += dv * h[v];
-        const w = xf(p, false);
+        let w = xf(p, false); if (TR) w = TR(w);
         const wx = st.x + w[0]*cy + w[2]*sy, wz = st.z - w[0]*sy + w[2]*cy;
         V.push(wx, st.y + w[1], wz, col[0], col[1], col[2], dir, col === GOLDC ? 3 : 0, shade);
       }
@@ -610,13 +620,36 @@ function buildDog(st) {
     part([sx * 0.12, 0.905, 0.48], [0.018, 0.025, 0.022], CORGI_D, ear);
     part([sx * 0.12, 0.76, 0.512], [0.035, 0.06, 0.004], EAR_IN, ear);
   }
-  // cowboy hat: wide brim with curled sides, dented crown and a dark band
-  const HAT_Y = 0.71;
-  part([0, HAT_Y, 0.49], [0.21, 0.012, 0.19], HAT, head);
-  for (const sx of [1, -1]) part([sx * 0.2, HAT_Y + 0.03, 0.49], [0.012, 0.03, 0.17], HAT, head);
-  part([0, HAT_Y + 0.07, 0.49], [0.105, 0.065, 0.095], HAT, head);
-  part([0, HAT_Y + 0.025, 0.49], [0.108, 0.016, 0.098], HAT_BAND, head);
-  part([0, HAT_Y + 0.138, 0.49], [0.03, 0.006, 0.08], HAT_BAND, head);
+  // hats from the Nugget Shop
+  const HAT_Y = 0.71, hat = st.hat || NUG.hat;
+  if (hat === 'cowboy') { // wide brim with curled sides, dented crown and a dark band
+    part([0, HAT_Y, 0.49], [0.21, 0.012, 0.19], HAT, head);
+    for (const sx of [1, -1]) part([sx * 0.2, HAT_Y + 0.03, 0.49], [0.012, 0.03, 0.17], HAT, head);
+    part([0, HAT_Y + 0.07, 0.49], [0.105, 0.065, 0.095], HAT, head);
+    part([0, HAT_Y + 0.025, 0.49], [0.108, 0.016, 0.098], HAT_BAND, head);
+    part([0, HAT_Y + 0.138, 0.49], [0.03, 0.006, 0.08], HAT_BAND, head);
+  } else if (hat === 'party') { // striped cone with a pom-pom
+    for (let k = 0; k < 6; k++) part([0, HAT_Y + 0.02 + k * 0.05, 0.49], [0.1 - k * 0.016, 0.026, 0.1 - k * 0.016], k % 2 ? [1, 0.85, 0.2] : [0.95, 0.3, 0.6], head);
+    part([0, HAT_Y + 0.33, 0.49], [0.035, 0.035, 0.035], [0.4, 0.85, 1], head);
+  } else if (hat === 'top') {
+    part([0, HAT_Y, 0.49], [0.16, 0.012, 0.15], DARK, head);
+    part([0, HAT_Y + 0.12, 0.49], [0.095, 0.11, 0.09], DARK, head);
+    part([0, HAT_Y + 0.04, 0.49], [0.098, 0.022, 0.093], [0.8, 0.12, 0.15], head);
+  } else if (hat === 'pirate') {
+    part([0, HAT_Y + 0.02, 0.49], [0.22, 0.014, 0.12], DARK, head);
+    part([0, HAT_Y + 0.08, 0.49], [0.11, 0.06, 0.1], DARK, head);
+    for (const sz of [1, -1]) part([0, HAT_Y + 0.09, 0.49 + sz * 0.11], [0.2, 0.06, 0.012], DARK, head);
+    part([0, HAT_Y + 0.1, 0.605], [0.03, 0.03, 0.004], WHITE, head);
+  } else if (hat === 'wizard') { // tall bendy purple hat with stars
+    const PUR = [0.42, 0.25, 0.75];
+    part([0, HAT_Y, 0.49], [0.2, 0.012, 0.19], PUR, head);
+    for (let k = 0; k < 7; k++) part([0, HAT_Y + 0.04 + k * 0.055, 0.49 - k * k * 0.004], [0.1 - k * 0.012, 0.03, 0.1 - k * 0.012], PUR, head);
+    for (const [dx, dy] of [[0.06, 0.08], [-0.05, 0.17], [0.03, 0.26]]) part([dx, HAT_Y + dy, 0.49 + 0.1 - dy * 0.12], [0.014, 0.014, 0.004], GOLDC, head);
+  } else if (hat === 'crown') { // glowing gold crown with red gems
+    for (const [cx, cz, hx, hz] of [[0, 0.59, 0.11, 0.012], [0, 0.39, 0.11, 0.012], [0.11, 0.49, 0.012, 0.1], [-0.11, 0.49, 0.012, 0.1]]) part([cx, HAT_Y + 0.04, cz], [hx, 0.045, hz], GOLDC, head);
+    for (const [cx, cz] of [[-0.08, 0.59], [0, 0.59], [0.08, 0.59], [-0.08, 0.39], [0.08, 0.39], [0.11, 0.49], [-0.11, 0.49]]) part([cx, HAT_Y + 0.11, cz], [0.018, 0.025, 0.018], GOLDC, head);
+    part([0, HAT_Y + 0.045, 0.603], [0.022, 0.022, 0.004], [0.85, 0.1, 0.15], head);
+  }
   // a fluffy little corgi tail that wiggles
   const wag = Math.sin(t * (sit ? 18 : 11)) * 0.7;
   const TP = [0, 0.42, -0.42];
@@ -830,6 +863,8 @@ function buildLobbyExtras() {
   for (let x = 6; x <= 8; x++) E.set_block(x, 17, 34, 7);
   for (let z = 56; z <= 58; z++) E.set_block(36, 17, z, 7);
   buildSkyIslands();
+  buildFunBits();
+  setTimeout(placeBones, 0);
   // Spleef: a snow arch to the right of spawn (walk through it to join)
   for (let x = 42; x <= 44; x++) for (let z = 22; z <= 27; z++) E.set_block(x, 16, z, z === 22 || z === 27 || x !== 43 ? 29 : 27);
   for (let y = 17; y <= 21; y++) for (const z of [23, 26]) E.set_block(43, y, z, 29);
@@ -884,6 +919,7 @@ function skyStep() {
     if (Math.abs(x - isl.x) > 2.6 || Math.abs(z - isl.z) > 2.6 || skyProg.found.has(i)) return;
     skyProg.found.add(i); store.set('skyFound', [...skyProg.found]);
     const n = skyProg.found.size;
+    earn(5, 'sky island');
     if (n === 4) banner('ALL 4 SKY ISLANDS!', 'You climbed every one. Parkour pro!', '#ffd36b', 3500);
     else banner('SKY ISLAND FOUND', `${isl.name} island · ${n} of 4`, '#6fbf4a', 2600);
   });
@@ -922,7 +958,8 @@ function raceStep(dt) {
       race.best = race.t; store.set('raceBest', race.t);
       race.ghost = { t: race.t, s: race.rec.slice() }; store.set('raceGhost', race.ghost);
     }
-    sfx(rec ? 'win' : 'goal');
+    sfx(rec ? 'win' : 'goal'); earn(rec ? 5 : 2, rec ? 'new best lap' : 'lap');
+    if (rec) fireworks(4);
     const vs = old == null ? 'Your ghost will race you next lap!' : rec ? `You beat your ghost by ${(old - race.t).toFixed(2)}s!` : `Your ghost won by ${(race.t - old).toFixed(2)}s`;
     banner(rec ? 'NEW BEST LAP!' : 'LAP COMPLETE', `${fmtTime(race.t)} · ${vs}`, rec ? '#ffd36b' : '#6fbf4a', 3000);
   } else if (!race.on) {
@@ -1007,12 +1044,173 @@ function pick(i, quiet) {
   selected = i; [...hotbar.children].forEach((c, j) => c.classList.toggle('on', j === i));
   if (!quiet && SLOTS[i] && SLOTS[i].act) SLOTS[i].act();
 }
+// ---------- FUN STUFF: golden bones, Nugget Shop, tricks, jump pads, turbo strips, fireworks ----------
+const WALLET = { bones: store.get('bones') || 0, earned: 0 };
+function earn(n, why) {
+  if (!n) return;
+  WALLET.bones += n; WALLET.earned += n; store.set('bones', WALLET.bones);
+  say(`<b style="color:#ffd36b">+${n} golden bone${n > 1 ? 's' : ''}</b>${why ? ' · ' + why : ''}`, 2600); sfx('coin');
+}
+// what Nugget is wearing
+const NUG_SHOP = {
+  hat: [['cowboy', 'Cowboy hat', 0], ['party', 'Party hat', 15], ['top', 'Top hat', 25], ['pirate', 'Pirate hat', 30], ['wizard', 'Wizard hat', 30], ['crown', 'Royal crown', 40], ['none', 'No hat', 0]],
+  fur: [['classic', 'Classic corgi', 0], ['golden', 'Golden', 20], ['chocolate', 'Chocolate', 20], ['snowy', 'Snowy white', 25], ['midnight', 'Midnight', 30], ['rainbow', 'RAINBOW', 60]],
+  trail: [['none', 'No trail', 0], ['bubbles', 'Bubbles', 20], ['sparkles', 'Sparkles', 25], ['hearts', 'Hearts', 25], ['fire', 'Fire', 35], ['rainbow', 'Rainbow', 40]],
+};
+const NUG = Object.assign({ hat: 'cowboy', fur: 'classic', trail: 'none' }, store.get('nug') || {});
+const NUG_OWNED = new Set(store.get('nugOwned') || []);
+const nugOwns = (cat, id) => NUG_SHOP[cat].find((x) => x[0] === id)[2] === 0 || NUG_OWNED.has(cat + ':' + id);
+function hsl(h, s, l) { const f = (n) => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }; return [f(0), f(8), f(4)]; }
+function furCols(t) {
+  switch (NUG.fur) {
+    case 'golden': return [[0.96, 0.74, 0.28], [0.84, 0.56, 0.16], CREAM];
+    case 'chocolate': return [[0.43, 0.27, 0.16], [0.3, 0.18, 0.1], [0.86, 0.76, 0.63]];
+    case 'snowy': return [[0.94, 0.94, 0.96], [0.8, 0.82, 0.87], [1, 1, 1]];
+    case 'midnight': return [[0.17, 0.17, 0.24], [0.09, 0.09, 0.13], [0.76, 0.73, 0.82]];
+    case 'rainbow': { const c = hsl((t * 0.15) % 1, 0.75, 0.55); return [c, c.map((v) => v * 0.78), CREAM]; }
+    default: return [CORGI, CORGI_D, CREAM];
+  }
+}
+function openShop() {
+  if (scene !== 'lobby') return;
+  const cats = [['hat', 'Hats'], ['fur', 'Fur'], ['trail', 'Trails (while Nugget runs)']];
+  $('voteT').textContent = 'NUGGET SHOP';
+  $('voteN').innerHTML = `You have <b style="color:#ffd36b">${WALLET.bones} golden bones</b>. Earn more by playing every game, racing laps and finding the 10 hidden golden bones in the lobby!`;
+  const list = $('voteList'); list.innerHTML = '';
+  for (const [cat, label] of cats) {
+    const h = document.createElement('div'); h.textContent = label; h.style.cssText = 'font-weight:bold;margin:10px 0 4px;color:#ffd36b'; list.appendChild(h);
+    for (const [id, name, price] of NUG_SHOP[cat]) {
+      const owned = nugOwns(cat, id), on = NUG[cat] === id;
+      const b = document.createElement('button'); b.className = 'game shopitem';
+      b.innerHTML = `<span>${name}</span><em>${on ? 'WEARING' : owned ? 'wear it' : price + ' bones'}</em>`;
+      if (!owned && WALLET.bones < price) b.style.opacity = '0.5';
+      b.addEventListener('click', () => {
+        if (!owned) {
+          if (WALLET.bones < price) { $('voteN').innerHTML = `You need <b>${price - WALLET.bones} more golden bones</b> for the ${name}. Go play!`; return; }
+          WALLET.bones -= price; store.set('bones', WALLET.bones); NUG_OWNED.add(cat + ':' + id); store.set('nugOwned', [...NUG_OWNED]); sfx('coin');
+        }
+        NUG[cat] = id; store.set('nug', NUG); sfx('click');
+        const sc = list.parentElement.scrollTop; openShop(); list.parentElement.scrollTop = sc;
+      });
+      list.appendChild(b);
+    }
+  }
+  const done = document.createElement('div'); done.className = 'row2'; done.innerHTML = '<button class="btn" id="shopDone">DONE</button>'; list.appendChild(done);
+  $('shopDone').onclick = () => { $('vote').hidden = true; lockMouse(); };
+  $('vote').hidden = false; releaseMouse();
+}
+// trails behind Nugget
+let trailT = 0;
+function trailStep(st, dt) {
+  if (!st || NUG.trail === 'none' || !st.moving) return;
+  trailT -= dt; if (trailT > 0) return; trailT = 0.035;
+  const bx = st.x - Math.sin(st.yaw) * 0.55, bz = st.z - Math.cos(st.yaw) * 0.55, r = () => (Math.random() - 0.5);
+  const kind = NUG.trail;
+  const col = kind === 'sparkles' ? (Math.random() < 0.5 ? [1, 0.95, 0.5] : [1, 1, 1]) : kind === 'hearts' ? [1, 0.35 + Math.random() * 0.2, 0.55] : kind === 'bubbles' ? [0.7, 0.9, 1] : kind === 'fire' ? [1, 0.3 + Math.random() * 0.5, 0.1] : hsl((T * 0.6) % 1, 0.9, 0.6);
+  const up = kind === 'bubbles' || kind === 'fire' || kind === 'hearts';
+  if (FX.length < 230) FX.push({ x: bx + r() * 0.3, y: st.y + 0.35 + Math.random() * 0.3, z: bz + r() * 0.3, vx: r() * 0.6, vy: up ? 5 + Math.random() * 2 : 2 + Math.random() * 2, vz: r() * 0.6, t: 0, life: kind === 'rainbow' ? 0.9 : 0.6, col, s: kind === 'bubbles' ? 0.07 : 0.05 });
+}
+// tricks: press T and Nugget shows off
+const TRICKS = ['flip', 'spin', 'roll', 'hop'];
+let dogTrick = null;
+function doTrick() {
+  if (scene !== 'lobby' || E.is_riding() || dogTrick) return;
+  const kind = TRICKS[Math.floor(Math.random() * TRICKS.length)];
+  dogTrick = { kind, t: 0 }; sfx('bark');
+  const name = { flip: 'BACKFLIP!', spin: 'SPIN!', roll: 'BARREL ROLL!', hop: 'SUPER HOP!' }[kind];
+  banner(name, 'Good boy, Nugget!', '#ffd36b', 1200);
+  const x = E.dog_x(), y = E.dog_y(), z = E.dog_z();
+  for (let i = 0; i < 26 && FX.length < 240; i++) FX.push({ x, y: y + 0.6, z, vx: (Math.random() - 0.5) * 5, vy: 3 + Math.random() * 4, vz: (Math.random() - 0.5) * 5, t: 0, life: 0.9, col: hsl(Math.random(), 0.9, 0.6), s: 0.05 });
+}
+function trickStep(dt) { if (dogTrick) { dogTrick.t += dt; if (dogTrick.t > 0.95) dogTrick = null; } }
+// fireworks when you win
+const FW = [];
+function fireworks(n) { for (let i = 0; i < n; i++) FW.push({ t: i * 0.35 + Math.random() * 0.2 }); }
+function fireworkStep(dt) {
+  for (const f of FW) {
+    f.t -= dt; if (f.t > 0 || f.done) continue; f.done = true;
+    const side = (Math.random() - 0.5) * 16, rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const x = curEye[0] + curDir[0] * 12 + rx * side, y = curEye[1] + curDir[1] * 12 + 1.5 + Math.random() * 3, z = curEye[2] + curDir[2] * 12 + rz * side;
+    const c = hsl(Math.random(), 0.95, 0.6), c2 = hsl(Math.random(), 0.95, 0.7);
+    for (let i = 0; i < 46 && FX.length < 300; i++) {
+      const a = Math.random() * 6.28, b = Math.acos(Math.random() * 2 - 1), s = 6 + Math.random() * 2;
+      FX.push({ x, y, z, vx: Math.sin(b) * Math.cos(a) * s, vy: Math.cos(b) * s + 3, vz: Math.sin(b) * Math.sin(a) * s, t: 0, life: 1 + Math.random() * 0.4, col: i % 3 ? c : c2, s: 0.07, glow: true });
+    }
+    sfx('pop');
+  }
+  for (let i = FW.length - 1; i >= 0; i--) if (FW[i].done) FW.splice(i, 1);
+}
+// hidden golden bones in the lobby
+const BONES_FOUND = new Set(store.get('bonesFound') || []);
+const BONE_SPOTS = [];
+function placeBones() {
+  BONE_SPOTS.length = 0;
+  const top = (x, z, from = 20) => { let y = from; while (y > 0 && !E.get_block(Math.floor(x), y, Math.floor(z))) y--; return y + 1; };
+  for (const isl of skyIslands) BONE_SPOTS.push([isl.x, SKY_TOP + 1.5, isl.z, 'a sky island']);
+  BONE_SPOTS.push([43.5, top(43.5, 24.5, 30) + 0.5, 24.5, 'the top of the snow arch']);
+  for (const p of PORTALS.slice(0, 4)) { // hidden behind each portal
+    const dx = p.pos[0] - 32, dz = p.pos[2] - 32, l = Math.hypot(dx, dz) || 1;
+    let x = p.pos[0] + dx / l * 2.2, z = p.pos[2] + dz / l * 2.2;
+    if (top(x, z) > 18) { x += 3; } // something tall is there (like the start arch), step to the side
+    BONE_SPOTS.push([x, top(x, z) + 0.5, z, 'behind a portal']);
+  }
+  BONE_SPOTS.push([31.5, top(31.5, 6.5) + 0.5, 6.5, 'the start line']);
+}
+function boneStep() {
+  if (scene !== 'lobby') return;
+  const px = E.player_x(), py = E.player_y(), pz = E.player_z();
+  BONE_SPOTS.forEach((b, i) => {
+    if (BONES_FOUND.has(i) || Math.hypot(b[0] - px, b[2] - pz) > 1.3 || Math.abs(b[1] - py - 0.6) > 1.6) return;
+    BONES_FOUND.add(i); store.set('bonesFound', [...BONES_FOUND]);
+    const n = BONES_FOUND.size;
+    banner(n === BONE_SPOTS.length ? 'ALL 10 GOLDEN BONES!' : 'HIDDEN GOLDEN BONE!', `${n} of ${BONE_SPOTS.length} found`, '#ffd36b', 2600);
+    earn(n === BONE_SPOTS.length ? 25 : 8, 'hidden bone'); if (n === BONE_SPOTS.length) fireworks(8);
+    for (let k = 0; k < 24 && FX.length < 240; k++) FX.push({ x: b[0], y: b[1], z: b[2], vx: (Math.random() - 0.5) * 4, vy: 2 + Math.random() * 4, vz: (Math.random() - 0.5) * 4, t: 0, life: 0.8, col: [1, 0.85, 0.3], s: 0.05 });
+  });
+}
+function drawBones(V, I) {
+  if (scene !== 'lobby') return;
+  BONE_SPOTS.forEach((b, i) => {
+    if (BONES_FOUND.has(i)) return;
+    const o = [b[0], b[1] + Math.sin(T * 2 + i) * 0.12, b[2]], yw = T * 1.6 + i, g = [1, 0.84, 0.3];
+    pushBox(V, I, o, [0, 0, 0], [0.24, 0.05, 0.05], g, yw, 3);
+    for (const s of [1, -1]) for (const t of [1, -1]) pushBox(V, I, o, [s * 0.26, 0, t * 0.06], [0.06, 0.06, 0.06], g, yw, 3);
+  });
+}
+// jump pads (glowing green) and turbo strips (orange and yellow) in the lobby
+const PADS = new Set(), STRIPS = new Set();
+function buildFunBits() {
+  PADS.clear(); STRIPS.clear();
+  for (const [x0, z0] of [[28, 21], [36, 26], [45, 24]]) for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) {
+    const x = x0 + dx, z = z0 + dz; let y = 30; while (y > 0 && !E.get_block(x, y, z)) y--; // sit on the real ground
+    E.set_block(x, y, z, 22); PADS.add(x + ',' + z);
+  }
+  const strip = (x, z) => { if (!onTrack(x, z)) return; E.set_block(x, 16, z, (x + z) % 2 ? 24 : 25); STRIPS.add(x + ',' + z); };
+  for (let a = 31; a <= 33; a++) for (let b = 0; b < 24; b++) { strip(a, 63 - b); strip(63 - b, a); strip(b, a); } // south, east, west
+  for (let x = 44; x <= 46; x++) for (let z = 0; z < 24; z++) strip(x, z); // north (after the start line)
+}
+let boostT = 0, padCool = 0;
+function padStep(dt) {
+  boostT = Math.max(0, boostT - dt); padCool = Math.max(0, padCool - dt);
+  if (scene !== 'lobby') return;
+  if (E.is_riding()) {
+    if (STRIPS.has(Math.floor(E.dog_x()) + ',' + Math.floor(E.dog_z()))) { if (boostT < 0.2) { sfx('whoosh'); say('<b>TURBO STRIP!</b> Zoom!', 1200); } boostT = 1.3; }
+    return;
+  }
+  if (padCool <= 0 && E.player_on_ground() && PADS.has(Math.floor(E.player_x()) + ',' + Math.floor(E.player_z()))) {
+    E.player_push(0, 22, 0); padCool = 0.5; sfx('boing');
+    for (let k = 0; k < 16 && FX.length < 240; k++) FX.push({ x: E.player_x(), y: E.player_y(), z: E.player_z(), vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 3, vz: (Math.random() - 0.5) * 3, t: 0, life: 0.6, col: [0.5, 1, 0.4], s: 0.05 });
+  }
+}
+
 const LOBBY_SLOTS = [
   { tip: 'Game menu (E)', icon: 'compass', act: () => openMenu() },
   { tip: 'Whistle for Nugget (Q)', icon: 'whistle', act: () => whistle() },
   { tip: 'Ride Nugget (F)', icon: 'saddle', act: () => ride() },
   { tip: '2-player Nugget race (one keyboard)', color: '#f24050', act: () => { pick(0, true); Duo.start(); } },
-  {}, {}, {}, {},
+  { tip: 'Nugget Shop (K)', color: '#ffd36b', act: () => { pick(0, true); openShop(); } },
+  { tip: 'Nugget trick (T)', color: '#a35cff', act: () => { pick(0, true); doTrick(); } },
+  {}, {},
   { tip: 'Back to spawn (B)', icon: 'bed', act: () => { E.respawn_player(); yaw = 0; pitch = 0; say('Back at spawn.'); } },
 ];
 
@@ -1053,6 +1251,8 @@ function showResult(title, color, sub, lines, keep) {
   sfx(/KNOCKED|DIED|OUT/.test(title) ? 'lose' : 'win');
   $('resKeep').hidden = !keep; $('resKeep').textContent = 'KEEP PLAYING'; keepFn = null;
   $('resT').textContent = title; $('resT').style.color = color;
+  if (WALLET.earned > 0) { lines = lines.concat([['Golden bones earned', `<b style="color:#ffd36b">+${WALLET.earned}</b>`]]); WALLET.earned = 0; }
+  if (/WIN|CHAMPION|COMPLETE|BEATEN|WORKS|DEFEATED|BEAT /.test(title) && !/YOU FELL|KNOCKED/.test(title)) fireworks(9);
   $('resB').innerHTML = (sub ? `<p>${sub}</p>` : '') + lines.map(([a, b]) => `<div class="line"><span>${a}</span><span>${b}</span></div>`).join('');
   $('result').hidden = false; $('toast').hidden = true; releaseMouse();
 }
@@ -1871,7 +2071,7 @@ const Survival = {
       if (near && G.blazeT <= 0 && G.mobs.filter((m) => m.type === 'blaze').length < 3) { G.blazeT = 8; this.spawnBlaze(); }
     }
     this.shotStep(dt);
-    GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) { banner('GOAL COMPLETE', name, '#6fbf4a', 2400); sfx('goal'); } } });
+    GOALS.forEach(([name, test], i) => { if (!G.done[i] && test()) { G.done[i] = true; if (i < GOALS.length - 1) { banner('GOAL COMPLETE', name, '#6fbf4a', 2400); sfx('goal'); earn(3, 'goal'); } else earn(30, 'beat Survival'); } });
     if (G.done[GOALS.length - 1] && !G.won) {
       G.won = true; sfx('win');
       const best = store.get('survivalBest'); const rec = best == null || G.t < best; if (rec) store.set('survivalBest', G.t);
@@ -2392,6 +2592,7 @@ const Build = {
     const vote = (s) => { const [, word, col] = voteOf(s); return `<b style="color:${col}">${word}</b> (${s})`; };
     const title = place === 1 ? 'YOU WON BUILD BATTLE!' : `YOU PLACED ${ord[place - 1].toUpperCase()}!`;
     const sub = !n ? 'The judges could not find a build!' : place === 1 ? `Your ${G.theme.toLowerCase()} beat everyone.` : 'So close! Try more colors, height and symmetry.';
+    earn(place === 1 ? 12 : place === 2 ? 8 : place === 3 ? 6 : 4, 'Build Battle');
     showResult(title, place === 1 ? '#ffd36b' : '#33d9cc', sub, [
       ['Theme', G.theme],
       ['Judge Brick (size)', vote(s1)], ['Judge Pixel (color)', vote(s2)], ['Judge Skye (shape)', vote(s3)],
@@ -2698,6 +2899,7 @@ const Parkour = {
         return;
       }
       const k = G.level, rec = k !== 'code' && (G.best == null || G.t < G.best); if (rec) store.set(this.bestKey(k), G.t);
+      earn({ classic: 6, easy: 5, medium: 8, hard: 12, code: 5 }[k] || 0, 'course complete');
       if (G.best != null || rec) lines.splice(1, 0, ['Best', fmtTime(rec ? G.t : G.best)]);
       showResult('COURSE COMPLETE!', '#ff8f26', rec ? 'New personal best!' : 'Nice run!', lines);
     }
@@ -2777,6 +2979,7 @@ const SFX = {
   coin: ['sine', 1200, 1700, 0.1, 0.05], boom: ['sawtooth', 120, 30, 0.45, 0.13], wave: ['triangle', 440, 880, 0.35, 0.07], bark: ['square', 700, 420, 0.08, 0.05],
   slam: ['sawtooth', 90, 35, 0.4, 0.13], buy: ['sine', 660, 990, 0.12, 0.06], fuse: ['sawtooth', 300, 900, 0.5, 0.04],
   place: ['square', 220, 160, 0.05, 0.035], eat: ['square', 260, 200, 0.06, 0.04], click: ['square', 900, 900, 0.03, 0.025], jump: ['square', 300, 520, 0.08, 0.025],
+  pop: ['sine', 500, 1500, 0.18, 0.07], boing: ['triangle', 180, 900, 0.25, 0.08],
   arrow: ['triangle', 1400, 500, 0.08, 0.03], groan: ['sawtooth', 140, 110, 0.35, 0.05], bow: ['triangle', 700, 300, 0.12, 0.04], fireball: ['sawtooth', 200, 90, 0.3, 0.06],
 };
 // sounds made from noise: [length, filter frequency, volume]
@@ -3002,6 +3205,7 @@ const Wars = {
     const M = MODES[G.mode], rec = G.score > G.best; if (rec) { store.set(M.key, G.score); G.best = G.score; }
     if (G.mode === 'endless' && G.wave > (store.get('warsWaveEndless') || 0)) store.set('warsWaveEndless', G.wave);
     const lines = [['Mode', M.name + (G.wentEndless ? ' → Endless' : '')], ['Score', G.score + (rec ? ' (new best!)' : '')], ['Best', Math.max(G.best, G.score)], ['Wave reached', waveOf().replace('Wave ', '')], ['Enemies knocked out', G.kills], ['Time', fmtTime(G.t)]];
+    if (won) earn(G.mode === 'rush' ? 30 : 20, G.mode === 'rush' ? 'Boss Rush' : 'Block Wars champion');
     if (won && G.mode === 'rush') return showResult('BOSS RUSH BEATEN!', '#ffd36b', `You beat all ${RUSH.length} boss fights. Legend!`, lines);
     if (won) {
       // story beaten: offer endless mode, which keeps going from wave 11 with the same upgrades
@@ -3283,6 +3487,7 @@ const Wars = {
       if (G.wave >= MODES[G.mode].last) return this.end(true);
       const bonus = G.mode === 'rush' ? 20 + G.wave * 5 : 5 + Math.min(G.wave, 20) * 2; G.coins += bonus; G.state = 'cleared'; G.clearT = 1.8;
       G.balls.length = 0; G.shots.length = 0;
+      earn(G.mode === 'rush' ? 4 : 1, 'wave cleared');
       banner(`WAVE ${G.wave} CLEARED!`, `+${bonus} bonus coins. Time to shop!`, '#6fbf4a', 1800); sfx('wave');
     }
     if (G.state === 'cleared') { G.clearT -= dt; if (G.clearT <= 0) this.openShop(); }
@@ -3549,6 +3754,7 @@ const Spleef = {
     G.played++; store.set('spleefPlayed', G.played); if (won) { G.wins++; store.set('spleefWins', G.wins); }
     const ord = ['1st', '2nd', '3rd', '4th', '5th', '6th'][place - 1];
     const lines = [['Place', `${ord} of ${total}`], ['Time', fmtTime(G.t)], ['Bots you outlasted', G.bots.length - left], ['Wins', `${G.wins} of ${G.played} games`]];
+    earn(won ? 10 : 2, 'Spleef');
     if (won) showResult('YOU WIN SPLEEF!', '#ffd36b', 'Last one standing. Snow champion!', lines);
     else showResult('YOU FELL OUT!', '#e8f4ff', place === 2 ? 'So close! Only one bot was left.' : 'Tip: stand still less and keep digging near the bots.', lines);
     if (!won) E.set_player(32.5, SP_TOP + 6, 32.5);
@@ -3674,6 +3880,7 @@ const Duo = {
     G.endT = null;
     const [a, b] = G.p, win = a.done && (!b.done || a.finish <= b.finish) ? a : b;
     const line = (r) => r.done ? fmtTime(r.finish) + (r.best != null ? ' (best lap ' + fmtTime(r.best) + ')' : '') : `lap ${r.lap + 1} of ${DUO_LAPS}`;
+    earn(3, '2-player race');
     showResult(`PLAYER ${win.i + 1} WINS!`, win.i ? '#3f8cff' : '#f24050', win.i ? 'Blue Nugget takes the trophy!' : 'Red Nugget takes the trophy!', [['Player 1 (red)', line(a)], ['Player 2 (blue)', line(b)]]);
   },
   cam(r) {
@@ -3754,6 +3961,7 @@ function resetHud() {
   chatEl.innerHTML = ''; bannerT = 0; if (!joining) $('toast').hidden = true;
 }
 function loadGame(i) {
+  WALLET.earned = 0;
   if (scene === 'survival' && G) Survival.save(true);
   const p = PORTALS[i], game = GAMES[p.key];
   scene = p.key; gameIdx = i; G = null; lastBoard = '';
@@ -3809,6 +4017,8 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyB' && !joining) { if (scene !== 'lobby') toLobby(); else { if (E.is_riding()) E.toggle_ride(); E.respawn_player(); yaw = 0; pitch = -0.05; race.on = false; say('Back at spawn.', 3000); } }
   if (e.code === 'KeyQ') whistle();
+  if (e.code === 'KeyK' && scene === 'lobby' && !anyDialog()) openShop();
+  if (e.code === 'KeyT' && scene === 'lobby' && !anyDialog()) doTrick();
   if (e.code === 'KeyH' && scene === 'lobby') { race.ghostOn = !race.ghostOn; store.set('ghostOn', race.ghostOn); const el = document.getElementById('ghostst'); if (el) el.textContent = race.ghostOn ? 'on' : 'off'; say(race.ghostOn ? (race.ghost ? '<b>Ghost Nugget</b> on: race your best lap!' : '<b>Ghost Nugget</b> on. Set a lap first and your ghost will race you.') : 'Ghost Nugget off.', 3000); }
   if (e.code === 'KeyF' && !anyDialog()) ride();
   if (/^Digit[1-9]$/.test(e.code) && !anyDialog()) pick(+e.code.slice(5) - 1);
@@ -3868,6 +4078,7 @@ $('play').addEventListener('click', () => {
   say('Walk into a portal to join a game, or press <b>E</b> for the menu. <b>B</b> brings you back to the lobby.', 12000);
   say('Ride <b>Nugget</b> (F) around the <b>Nugget Raceway</b> and set a best lap! Your <b>ghost</b> races you next time.', 14000);
   say('Got a friend next to you? Hotbar slot <b>4</b> starts a <b>2-player race</b> on one keyboard!', 14000);
+  say('Earn <b style="color:#ffd36b">golden bones</b> in every game and spend them in the <b>Nugget Shop (K)</b>. Press <b>T</b> for a Nugget trick! 10 bones are <b>hidden</b> in the lobby. Bounce on the <b style="color:#7dff5a">green jump pads</b>!', 16000);
   say('Find the colored blocks at the edges and parkour up to all 4 <b>sky islands</b>!', 14000);
 });
 
@@ -4024,7 +4235,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { ringDist, Duo, keys, ghostAt, get playing() { return playing; }, get joining() { return joining; }, Spleef, Parkour, genCourse, encodeCourse, decodeCourse, redraw() { worldDirty = true; }, lightVerts, Wars, FOES, openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { WALLET, NUG, openShop, doTrick, BONE_SPOTS, BONES_FOUND, PADS, STRIPS, get boostT() { return boostT; }, fireworks, earn, ringDist, Duo, keys, ghostAt, get playing() { return playing; }, get joining() { return joining; }, Spleef, Parkour, genCourse, encodeCourse, decodeCourse, redraw() { worldDirty = true; }, lightVerts, Wars, FOES, openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -4054,12 +4265,15 @@ function frame(now) {
   if (jump && E.player_on_ground() && scene !== 'build') sfx('jump');
   const sprint = keys.ShiftLeft || keys.ShiftRight || touchSprint || (ridingNow && rightHeld) ? 1 : 0;
   if (scene === 'duo') { fx = 0; fz = 0; }
+  padStep(dt);
+  if (boostT > 0 && ridingNow) { fx *= 1.8; fz *= 1.8; }
   const ret = joining ? 0 : E.player_step(dt, fx, fz, scene === 'duo' ? 0 : jump, sprint);
   if (lobby) {
     E.dog_step(dt);
     if (ret > 0 && playing) startJoin(ret - 1);
     if (ret === -1) say('You fell off the island! Back to spawn.');
-    if (playing) { raceStep(dt); skyStep(); }
+    if (playing) { raceStep(dt); skyStep(); boneStep(); }
+    trickStep(dt);
     if (playing && !joining && !E.is_riding()) { const px = E.player_x(), pz = E.player_z(), py = E.player_y(); if (px > 42.7 && px < 43.3 && pz > 24 && pz < 26 && py < 19) startJoin(4); }
   } else if (G && !G.over && playing && !blocked) {
     const game = GAMES[scene];
@@ -4119,8 +4333,9 @@ function frame(now) {
   let dogState = null;
   if (lobby) {
     const ddx = E.dog_dx(), ddz = E.dog_dz();
-    dogState = { x: E.dog_x(), y: E.dog_y(), z: E.dog_z(), yaw: (Math.abs(ddx) + Math.abs(ddz) > 1e-4) ? Math.atan2(ddx, ddz) : 0, mode: E.dog_mode(), moving: E.dog_moving(), t: T, saddle: true };
+    dogState = { x: E.dog_x(), y: E.dog_y(), z: E.dog_z(), yaw: (Math.abs(ddx) + Math.abs(ddz) > 1e-4) ? Math.atan2(ddx, ddz) : 0, mode: E.dog_mode(), moving: E.dog_moving(), t: T, saddle: true, trick: dogTrick };
     if (riding) dogState.yaw = yaw;
+    trailStep(dogState, dt);
     const dg = buildDog(dogState);
     drawGeo(dogGeo, dg.V, dg.I, gl.TRIANGLES);
     const gs = race.on && riding ? ghostAt(race.t) : null;
@@ -4136,7 +4351,7 @@ function frame(now) {
   {
     const V = [], I = [];
     if ((scene === 'wars' || scene === 'survival' || scene === 'parkour' || scene === 'spleef') && G) GAMES[scene].draw(V, I);
-    AMB.night = nightK; ambientStep(dt, V, I);
+    AMB.night = nightK; ambientStep(dt, V, I); drawBones(V, I); fireworkStep(dt);
     fxStep(dt);
     for (const p of FX) { const k = 1 - p.t / p.life * 0.5; pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [p.s * k, p.s * k, p.s * k], p.col, p.t * 3); }
     if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES);
@@ -4193,6 +4408,7 @@ function frame(now) {
     $('dogstate').textContent = mode === 3 ? 'Being ridden' : mode === 2 ? 'Sitting' : mode === 1 ? 'Following you' : 'Doing laps';
     $('speed').textContent = speed.toFixed(1) + ' b/s';
     $('bestlap').textContent = race.best == null ? '—' : fmtTime(race.best);
+    if ($('bonesN')) { $('bonesN').textContent = WALLET.bones; $('hidN').textContent = `${BONES_FOUND.size} of ${BONE_SPOTS.length}`; }
     if ($('ghostst')) $('ghostst').textContent = !race.ghostOn ? 'off' : race.ghost ? 'on' : 'set a lap';
     $('skycount').textContent = skyProg.found.size + ' of 4';
     $('ridebar').hidden = !riding || !playing;
