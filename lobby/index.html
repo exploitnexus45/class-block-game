@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Class Block Game Lobby</title>
+<title>Glocinshmeel io</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap">
 <style>
@@ -164,6 +164,13 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 
 </head>
 <body>
+<div id="gtitle" aria-label="Glocinshmeel io title screen: click the bouncing red PLAY ball, or press Enter, to start"><canvas id="gtCanvas"></canvas></div>
+<script>window.gtShowing = true; // the title screen is in front: the game waits to draw until it is gone</script>
+<style>
+#gtitle { position: fixed; inset: 0; z-index: 1000; background: #2470cf; touch-action: none; }
+#gtitle canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#gtitle.done { background: transparent; pointer-events: none; }
+</style>
 <canvas id="gl" aria-label="3D lobby world"></canvas>
 <div id="vignette"></div>
 <div id="vignette" aria-hidden="true"></div>
@@ -4040,6 +4047,7 @@ canvas.addEventListener('mousedown', (e) => {
 addEventListener('mouseup', (e) => { if (e.button === 0) { dragging = false; mouseHeld = false; } if (e.button === 2) rightHeld = false; });
 addEventListener('mousemove', (e) => {
   if (!playing) return;
+  if (Math.abs(e.movementX) > 200 || Math.abs(e.movementY) > 200) return; // skip the one giant jump some browsers send when the mouse gets locked
   if (document.pointerLockElement === canvas || dragging) { yaw -= e.movementX * 0.0025; pitch -= e.movementY * 0.0025; pitch = Math.max(-1.5, Math.min(1.5, pitch)); }
 });
 addEventListener('wheel', (e) => { if (!playing || anyDialog()) return; pick((selected + (e.deltaY > 0 ? 1 : 8)) % 9, true); }, { passive: true });
@@ -4248,6 +4256,7 @@ function resize() {
 addEventListener('resize', resize); resize();
 
 function frame(now) {
+  if (window.gtShowing) { last = now; requestAnimationFrame(frame); return; } // title screen is showing
   const dt = Math.min(0.05, (now - last) / 1000); last = now; T += dt;
   const blocked = anyDialog() || !!joining;
   const lobby = scene === 'lobby';
@@ -4436,5 +4445,651 @@ requestAnimationFrame(frame);
 })();
 </script>
 
+<script>
+// ---------- GLOCINSHMEEL IO title screen ----------
+// Shown in front of the lobby. Catch the bouncy PLAY ball, watch the loading count 1...1024!,
+// then it presses the game's own PLAY button and gets out of the way.
+(() => {
+const root = document.getElementById('gtitle');
+const cv = document.getElementById('gtCanvas');
+const ctx = cv.getContext('2d');
+const ART_H = 144, BLOCK = 8, STONE_TOP = 96;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const pickOf = (r, a) => a[Math.floor(r() * a.length)];
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// a picture from rows of letters: each letter is looked up in the palette, '.' is see-through
+function sprite(rows, pal, flip) {
+  const h = rows.length, w = rows[0].length, c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== '.' && pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(flip ? w - 1 - x : x, y, 1, 1); }
+  }));
+  return c;
+}
+
+// ---------- letters: every letter is 7 squares wide and 9 tall, lines 2 squares thick ----------
+const FONT = {
+  G: ['.######', '#######', '##.....', '##.....', '##..###', '##..###', '##...##', '#######', '.######'],
+  L: ['##.....', '##.....', '##.....', '##.....', '##.....', '##.....', '##.....', '#######', '#######'],
+  O: ['.#####.', '#######', '##...##', '##...##', '##...##', '##...##', '##...##', '#######', '.#####.'],
+  C: ['.######', '#######', '##.....', '##.....', '##.....', '##.....', '##.....', '#######', '.######'],
+  I: ['#######', '#######', '..###..', '..###..', '..###..', '..###..', '..###..', '#######', '#######'],
+  N: ['##...##', '###..##', '####.##', '##.####', '##..###', '##...##', '##...##', '##...##', '##...##'],
+  S: ['.######', '#######', '##.....', '######.', '.######', '.....##', '.....##', '#######', '######.'],
+  H: ['##...##', '##...##', '##...##', '#######', '#######', '##...##', '##...##', '##...##', '##...##'],
+  M: ['##...##', '###.###', '#######', '##.#.##', '##...##', '##...##', '##...##', '##...##', '##...##'],
+  E: ['#######', '#######', '##.....', '#####..', '#####..', '##.....', '##.....', '#######', '#######'],
+  Y: ['##...##', '##...##', '###.###', '.#####.', '..###..', '..###..', '..###..', '..###..', '..###..'],
+  P: ['######.', '#######', '##...##', '##...##', '#######', '######.', '##.....', '##.....', '##.....'],
+  A: ['.#####.', '#######', '##...##', '##...##', '#######', '#######', '##...##', '##...##', '##...##'],
+  D: ['######.', '#######', '##...##', '##...##', '##...##', '##...##', '##...##', '#######', '######.'],
+  0: ['.#####.', '#######', '##...##', '##..###', '##.#.##', '###..##', '##...##', '#######', '.#####.'],
+  1: ['..###..', '.####..', '#####..', '..###..', '..###..', '..###..', '..###..', '#######', '#######'],
+  2: ['.#####.', '#######', '##...##', '....###', '..####.', '.###...', '###....', '#######', '#######'],
+  3: ['######.', '#######', '.....##', '.#####.', '.#####.', '.....##', '.....##', '#######', '######.'],
+  4: ['##...##', '##...##', '##...##', '#######', '#######', '.....##', '.....##', '.....##', '.....##'],
+  5: ['#######', '#######', '##.....', '######.', '#######', '.....##', '##...##', '#######', '.#####.'],
+  6: ['.#####.', '#######', '##.....', '######.', '#######', '##...##', '##...##', '#######', '.#####.'],
+  8: ['.#####.', '#######', '##...##', '.#####.', '#######', '##...##', '##...##', '#######', '.#####.'],
+  '!': ['.###.', '.###.', '.###.', '.###.', '.###.', '.###.', '.....', '.###.', '.###.'],
+};
+const LETTER_COLORS = {
+  gold: ['#fff3a8', '#ffc828', '#d98a00'],
+  green: ['#d6ffb0', '#5cd660', '#1f9a38'],
+  blue: ['#d4ecff', '#4c9cff', '#1e56d0'],
+  white: ['#ffffff', '#ffffff', '#d8d8e2'],
+};
+const CELL = 24, PAD = 1;
+const letterCache = {};
+// one letter picture: smooth shiny color inside, a blocky stair-stepped outline and a blocky shadow
+function letterCanvas(ch, name) {
+  const key = ch + ':' + name;
+  if (letterCache[key]) return letterCache[key];
+  const rows = FONT[ch], W = (rows[0].length + 2 * PAD) * CELL, H = (rows.length + 2 * PAD) * CELL;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  const cells = (g, grow) => rows.forEach((line, r) => [...line].forEach((b, c) => {
+    if (b === '#') g.fillRect((c + PAD) * CELL - grow, (r + PAD) * CELL - grow, CELL + 2 * grow, CELL + 2 * grow);
+  }));
+  // the colored part: blur the squares and cut it sharp again, so the corners come out rounded
+  const grid = mk(), gg = grid.getContext('2d'); gg.fillStyle = '#fff'; cells(gg, 0);
+  const shape = mk(), sg = shape.getContext('2d');
+  sg.filter = `blur(${CELL * 0.3}px)`; sg.drawImage(grid, 0, 0); sg.filter = 'none';
+  const id = sg.getImageData(0, 0, W, H), d = id.data;
+  for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = d[i + 3] > 110 ? 255 : 0; }
+  sg.putImageData(id, 0, 0);
+  // the outline grows out from the squares with no blur, so its edges stay straight and step like blocks
+  const k = Math.floor(CELL * 0.34);
+  const outline = mk(), og = outline.getContext('2d'); og.fillStyle = '#08080e'; cells(og, k);
+  // color fading from the shine color at the top to the darker color at the bottom
+  const [top, main, bottom] = LETTER_COLORS[name];
+  const fill = mk(), fg = fill.getContext('2d');
+  const grad = fg.createLinearGradient(0, PAD * CELL, 0, H - PAD * CELL);
+  grad.addColorStop(0, top); grad.addColorStop(0.5, main); grad.addColorStop(1, bottom);
+  fg.fillStyle = grad; fg.fillRect(0, 0, W, H);
+  fg.globalCompositeOperation = 'destination-in'; fg.drawImage(shape, 0, 0);
+  // shiny top edges and darker bottom edges
+  const edge = (dy, color) => {
+    const e = mk(), eg = e.getContext('2d');
+    eg.drawImage(shape, 0, 0);
+    eg.globalCompositeOperation = 'destination-out'; eg.drawImage(shape, 0, dy);
+    eg.globalCompositeOperation = 'source-in'; eg.fillStyle = color; eg.fillRect(0, 0, W, H);
+    return e;
+  };
+  const shine = edge(Math.round(CELL * 0.22), '#fff'), dark = edge(-Math.round(CELL * 0.18), '#000');
+  const out = mk(), o = out.getContext('2d');
+  o.globalAlpha = 0.5; o.drawImage(outline, k, k);
+  o.globalAlpha = 1; o.drawImage(outline, 0, 0); o.drawImage(fill, 0, 0);
+  o.globalAlpha = 0.55; o.drawImage(shine, 0, 0);
+  o.globalAlpha = 0.22; o.drawImage(dark, 0, 0);
+  letterCache[key] = out;
+  return out;
+}
+// lay out a word in screen-height units: centered, every letter the same width
+function makeWord(text, centerY, maxWidth, maxSquare, colors) {
+  const widths = [...text].map((ch) => ch === ' ' ? 3 : FONT[ch][0].length + 1);
+  const total = widths.reduce((a, b) => a + b, 0) - 1;
+  const size = Math.min(maxWidth / total, maxSquare);
+  let x = -total * size / 2, n = 0;
+  const letters = [];
+  [...text].forEach((ch, i) => {
+    if (ch !== ' ') {
+      const rows = FONT[ch];
+      const spots = [];
+      rows.forEach((line, r) => [...line].forEach((b, c) => { if (b === '#') spots.push([(c + 0.5) * size, (r + 0.5) * size]); }));
+      letters.push({ c: letterCanvas(ch, colors[n % colors.length]), x, cy: centerY, cols: rows[0].length, rows: rows.length, n, spots });
+      n++;
+    }
+    x += widths[i] * size;
+  });
+  return { letters, size };
+}
+
+// ---------- the glossy red PLAY ball ----------
+function ballTextures(size = 160) {
+  const r0 = size / 2 - 6;
+  const body = document.createElement('canvas'); body.width = body.height = size;
+  const bg = body.getContext('2d'), id = bg.createImageData(size, size), d = id.data;
+  const light = [255, 120, 104], mid = [226, 38, 40], darkc = [120, 8, 16];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const dx = x - size / 2 + 0.5, dy = y - size / 2 + 0.5, dist = Math.hypot(dx, dy), i = (y * size + x) * 4;
+    if (dist > r0 + 5) continue;
+    if (dist > r0) { d[i] = 20; d[i + 1] = 6; d[i + 2] = 8; d[i + 3] = 255; continue; }
+    const lx = dx + r0 * 0.35, ly = dy + r0 * 0.4;               // light comes from the upper left
+    const f = Math.min(1, Math.hypot(lx, ly) / (r0 * 1.55));
+    const [a, b, k] = f < 0.45 ? [light, mid, f / 0.45] : [mid, darkc, (f - 0.45) / 0.55];
+    const rim = Math.max(0, (dist / r0 - 0.82) / 0.18) * Math.max(0, (dx + dy) / (r0 * 1.4));
+    for (let j = 0; j < 3; j++) d[i + j] = Math.min(255, Math.round(a[j] + (b[j] - a[j]) * k + 90 * rim));
+    d[i + 3] = 255;
+  }
+  bg.putImageData(id, 0, 0);
+  const gloss = document.createElement('canvas'); gloss.width = gloss.height = size;
+  const gg = gloss.getContext('2d');
+  gg.filter = `blur(${size * 0.025}px)`;
+  gg.fillStyle = 'rgba(255,255,255,0.92)'; gg.beginPath(); gg.ellipse(size * 0.39, size * 0.26, size * 0.17, size * 0.12, 0, 0, Math.PI * 2); gg.fill();
+  gg.fillStyle = 'rgba(255,255,255,0.47)'; gg.beginPath(); gg.ellipse(size * 0.66, size * 0.7, size * 0.04, size * 0.04, 0, 0, Math.PI * 2); gg.fill();
+  return { body, gloss };
+}
+
+// ---------- sprites ----------
+const DOG_TOP = [
+  '..............bb....',
+  '.............bBBb...',
+  '............bBBBBB..',
+  '............BBKBBBWW',
+  '............BBBBWWWK',
+  '............BBBBWWT.',
+  '............CCCCC.T.',
+  '..bBBBBBBBBBBBBB....',
+  '..BBBBBBBBBBBBBB....',
+  '..BBBBBBBBBBBBBB....',
+  '..bBBWWWWWWWWBBb....',
+];
+const DOG_LEGS = {
+  run1: ['..bB........bB......', '.bB..........bB.....', '.bb...........bb....'],
+  run2: ['...bB......bB.......', '....bB....bB........', '....bb....bb........'],
+  stand: ['..bB.bB...bB.bB.....', '..bB.bB...bB.bB.....', '..bb.bb...bb.bb.....'],
+};
+const DOG_TAILS = [[[1, 6], [0, 5], [0, 4]], [[1, 7], [0, 7], [0, 6]]];
+const DOG_FURS = [
+  { B: '#d9a25a', b: '#9c6a32', W: '#f6e2bf', C: '#e02828' },   // golden dog, red collar
+  { B: '#3d3d44', b: '#1f1f24', W: '#d8d8de', C: '#2a7cf0' },   // black-and-white dog, blue collar
+  { B: '#f2f2f4', b: '#b4b4bc', W: '#ffffff', C: '#2ec850' },   // white dog, green collar
+  { B: '#8a5a3a', b: '#5a3a22', W: '#d9b08a', C: '#ffcc28' },   // brown dog, yellow collar
+  { B: '#c8c8cc', b: '#7d7d86', W: '#efefef', C: '#c04ad8' },   // gray dog, purple collar
+  { B: '#c4562c', b: '#86361a', W: '#f4cfa6', C: '#ffffff' },   // red dog, white collar: chases the PLAY ball
+];
+const DOG_FIXED = { K: '#151515', T: '#ff7a9a' };
+function dogRows(legs, tail) {
+  const rows = [...DOG_TOP, ...DOG_LEGS[legs]].map((r) => r.split(''));
+  for (const [x, y] of DOG_TAILS[tail]) rows[y][x] = 'B';
+  return rows.map((r) => r.join(''));
+}
+const MINER = [
+  '............hhYYYy........',
+  '...........hYYYYYYyL......',
+  '...........YYYYYYYYLL.....',
+  '..........yyyyyyyyyy......',
+  '..........bBBBBBBBB.......',
+  '.........bbBKKBBBWWW......',
+  '.........bbBKEBBWWWWWK....',
+  '.........bbBBBBWWWWWWK....',
+  '..........bBBBBwWWWW......',
+  '...........BBBBBwTT.......',
+  '..........CCCCCC..T.......',
+  '....HHHHHHHHHBBBBB........',
+  '...BBBBBBBBBBBBBBB........',
+  '...BBBBBBBBBBBBBBB........',
+  '...bBBBwwwwwwwwBBb........',
+  '...bB..bB....bB..bB.......',
+  '...bB..bB....bB..bB.......',
+  '...KK..KK....KK..KK.......',
+];
+const MINER_TAILS = [[[2, 10], [1, 11], [2, 11], [2, 12]], [[0, 11], [1, 11], [2, 11], [1, 12], [2, 12]]];
+const PICK_UP = [[18, 11, 'B'], [19, 11, 'B'], [20, 11, 'B'], [21, 11, 'b'],
+  [23, 3, 'P'], [23, 4, 'p'], [23, 5, 'P'], [23, 6, 'p'], [23, 7, 'P'], [23, 8, 'p'], [23, 9, 'P'], [23, 10, 'p'], [23, 11, 'P'],
+  [21, 3, 'G'], [22, 2, 'G'], [23, 2, 'G'], [24, 2, 'G'], [25, 3, 'G'], [23, 1, 'g'], [22, 1, 'g']];
+const PICK_DOWN = [[18, 12, 'B'], [19, 12, 'b'],
+  [18, 13, 'P'], [19, 13, 'p'], [20, 13, 'P'], [21, 13, 'p'], [22, 13, 'P'], [23, 13, 'p'],
+  [24, 10, 'G'], [25, 11, 'G'], [25, 12, 'g'], [24, 12, 'G'], [24, 13, 'G'], [24, 14, 'G'], [25, 14, 'g'], [25, 15, 'G'], [24, 16, 'G']];
+const MINER_FIXED = { Y: '#ffd400', y: '#c79a00', h: '#fff07a', L: '#fffbe0', K: '#0d0d0d', E: '#ffffff',
+  T: '#ff7a9a', P: '#7a5230', p: '#9b6b40', G: '#a7b0ba', g: '#e1e7ec' };
+const MINER_FURS = [
+  { B: '#c98b4b', b: '#8d5a2b', H: '#e2ac6c', W: '#f3dcb6', w: '#d8b88e', C: '#d62020' },   // golden miner
+  { B: '#3d3d42', b: '#222226', H: '#5b5b63', W: '#8f8f96', w: '#6d6d74', C: '#2a7cf0' },   // black miner
+];
+function minerRows(down, tail) {
+  const rows = MINER.map((r) => r.split(''));
+  for (const [x, y] of MINER_TAILS[tail]) rows[y][x] = 'B';
+  for (const [x, y, ch] of (down ? PICK_DOWN : PICK_UP)) rows[y][x] = ch;
+  return rows.map((r) => r.join(''));
+}
+const BALL = ['.RR.', 'RRWR', 'RRRR', '.RR.'];
+const CLOUD = [
+  '.....WWWW...........',
+  '...WWWWWWWW...WWW...',
+  '..WWWWWWWWWWWWWWWWW.',
+  '.WWWWWWWWWWWWWWWWWWW',
+  'WWWWWWWWWWWWWWWWWWWW',
+  'GWWWWWWWWWWWWWWWWWWG',
+  '.GGGGGGGGGGGGGGGGGG.',
+];
+const TREE = ['...LLLLL...', '..LLlLLLL..', '.LLLLLLlLL.', 'LLlLLLLLLLL', 'LLLLLLlLLLd', 'LLLLLLLLLdd',
+  '.dLLlLLLdd.', '..ddddddd..', '.....T.....', '.....Tt....', '.....T.....', '....TTT....'];
+const FLOWER_COLORS = ['#ffd84a', '#7fd2ff', '#ffffff', '#ff8ac8', '#ff6a4a'];
+const CART = ['...gObGOg...', '.KKKKKKKKKK.', '.KSSSSSSSSK.', '.KSsSSSSsSK.', '.KKKKKKKKKK.', '..KK....KK..'];
+const WEB = ['W.W.W.', '.WWW..', 'WWW...', '.W....', 'W.....'];
+const LAYERS = {
+  dirt: ['#7a5232', '#6a4528', '#86593a', '#5c3b22'],
+  stone: ['#7b7b7b', '#6d6d6d', '#878787', '#626262'],
+  deepslate: ['#43434c', '#38383f', '#4d4d56', '#2f2f35'],
+  bedrock: ['#161616', '#3a3a3a', '#585858', '#0a0a0a', '#2a2a2a'],
+};
+const ORES = ['#ffcc1a', '#2ee86b', '#3a7bff', '#141414'];        // gold, green, blue, coal
+const ORE_SHINE = ['#fff2a0', '#b6ffcf', '#b8d4ff', '#3a3a3a'];
+
+// ---------- the background: sunny hills on top, the ground cut open below with a mine shaft ----------
+function buildScene(w) {
+  const h = ART_H, r = rng(1337);
+  const img = new ImageData(w, h), D = img.data;
+  const put = (x, y, c) => { if (x < 0 || x >= w || y < 0 || y >= h) return; const i = (y * w + x) * 4; D[i] = c[0]; D[i + 1] = c[1]; D[i + 2] = c[2]; D[i + 3] = 255; };
+  const get = (x, y) => { const i = (y * w + x) * 4; return [D[i], D[i + 1], D[i + 2]]; };
+  const mix = (a, b, f) => { a = hex(a); b = hex(b); return a.map((v, i) => Math.round(v + (b[i] - v) * f)); };
+  const stamp = (rows, x0, y0, pal, flip) => { const ww = rows[0].length; rows.forEach((row, j) => [...row].forEach((ch, i) => { if (pal[ch]) put(x0 + (flip ? ww - 1 - i : i), y0 + j, hex(pal[ch])); })); };
+  const shade = (c, i, j) => (i === 0 || j === 0) ? c.map((v) => Math.min(255, v + 12)) : (i === BLOCK - 1 || j === BLOCK - 1) ? c.map((v) => Math.floor(v * 0.82)) : c;
+  const far = (x) => 60 + 4 * Math.sin(x * 0.021 + 0.5) + 2 * Math.sin(x * 0.058 + 1.3);
+  const mid = (x) => 69 + 4 * Math.sin(x * 0.03 + 3.1) + 2 * Math.sin(x * 0.075);
+  const near = (x) => 82 + 4 * Math.sin(x * 0.034 + 1.0) + 2 * Math.sin(x * 0.09 + 2.0);
+
+  // sky and sun
+  for (let y = 0; y < h; y++) { const sky = mix('#2470cf', '#86c4ee', Math.min(1, y / 60)); for (let x = 0; x < w; x++) put(x, y, sky); }
+  const sx = Math.round(w * 0.86), sy = 44;
+  for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) {
+    const d = Math.hypot(dx, dy);
+    if (d <= 8.6) put(sx + dx, sy + dy, hex(d < 5 ? '#fff6b0' : d < 7.4 ? '#ffe14d' : '#ffc21a'));
+  }
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; for (let rr = 11; rr < 15; rr++) put(Math.round(sx + Math.cos(a) * rr), Math.round(sy + Math.sin(a) * rr), hex('#ffd84a')); }
+
+  // far and middle hills, with trees
+  for (let x = 0; x < w; x++) { const t = Math.floor(far(x)); for (let y = t; y < h; y++) put(x, y, hex(y === t ? '#c3ead0' : ((x + y) % 7 ? '#a6dbb4' : '#9ccfaa'))); }
+  for (let x = 0; x < w; x += 17) stamp(['.F.', 'FFF', 'FFF', '.t.'], x, Math.floor(far(x + 1)) - 4, { F: '#86c497', t: '#8a9c86' });
+  for (const f of [0.08, 0.3, 0.7]) { const x = Math.round(w * f); stamp(TREE, x, Math.floor(mid(x + 5)) - TREE.length + 1, { L: '#5fbf4e', l: '#8ee06a', d: '#3f9038', T: '#7a5230', t: '#9b6b40' }); }
+  for (let x = 0; x < w; x++) {
+    const t = Math.floor(mid(x));
+    for (let y = t; y < h; y++) {
+      const depth = y - t;
+      let c = depth < 2 ? hex('#a2ee78') : mix('#6ccc5a', '#4fa648', Math.min(1, depth / 12));
+      if (depth >= 2 && r() < 0.08) c = mix('#5cbc4e', '#3f9038', Math.min(1, depth / 12));
+      put(x, y, c);
+    }
+  }
+
+  // the front hill, cut open: grass, dirt, then stone layers with the mine shaft
+  const rows = Math.floor((h - STONE_TOP) / BLOCK), cols = Math.floor(w / BLOCK) + 1;
+  const c0 = Math.max(1, Math.round(cols * 0.16)), c1 = Math.min(cols - 2, Math.round(cols * 0.84));
+  const ceil = STONE_TOP + BLOCK, floor = STONE_TOP + 3 * BLOCK;
+  const layer = (rr) => rr === rows - 1 ? 'bedrock' : rr === rows - 2 ? 'deepslate' : 'stone';
+  const blocks = {}, ores = [];
+  for (let rr = 0; rr < rows; rr++) for (let c = 0; c < cols; c++) {
+    const inT = (rr === 1 || rr === 2) && c >= c0 && c <= c1;
+    let ore = null;
+    if (layer(rr) !== 'bedrock' && !inT && r() < 0.1) ore = r() < 0.35 ? 3 : Math.floor(r() * 3);
+    if ((rr === 1 || rr === 2) && c === c0 - 1) ore = 0;   // gold wall for the left miner
+    if ((rr === 1 || rr === 2) && c === c1 + 1) ore = 2;   // blue wall for the right miner
+    blocks[rr + ',' + c] = [layer(rr), inT, ore];
+    if (ore !== null && ore < 3) ores.push([c * BLOCK + 4, STONE_TOP + rr * BLOCK + 4]);
+  }
+  const roots = {};
+  for (let c = 0; c < cols; c++) if (r() < 0.25) roots[c] = 1 + Math.floor(r() * 5);
+  for (let x = 0; x < w; x++) {
+    const top = Math.floor(near(x));
+    const hang = 3 + ((x * 3) % 5 === 0 ? 1 : 0) + (x % 3 === 0 ? 1 : 0);
+    if (r() < 0.45) put(x, top - 1, hex('#7ad85a'));
+    for (let y = top; y < h; y++) {
+      const i = x % BLOCK, depth = y - top;
+      let c;
+      if (y < STONE_TOP) {
+        if (depth < 2) c = hex('#b4f57e');
+        else if (depth < hang) c = hex(pickOf(r, ['#5fae3f', '#4f9a34', '#438a2b']));
+        else {
+          c = hex(pickOf(r, LAYERS.dirt));
+          if (r() < 0.06) c = [143, 138, 132];
+          if (roots[Math.floor(x / BLOCK)] === i && depth < 14) c = [59, 38, 20];
+          c = shade(c, i, y % BLOCK);
+        }
+      } else {
+        const rr = Math.floor((y - STONE_TOP) / BLOCK), j = (y - STONE_TOP) % BLOCK;
+        const [kind, inT, ore] = blocks[rr + ',' + Math.floor(x / BLOCK)];
+        let pal = LAYERS[kind];
+        if (kind === 'deepslate' && j % 3 === 1) pal = [pal[1], pal[3]];
+        c = hex(pickOf(r, pal));
+        const roll = r();
+        if (kind === 'stone' && roll < 0.05) c = [77, 77, 77];
+        if (kind === 'bedrock' && roll < 0.08) c = [106, 106, 106];
+        if (ore !== null && i > 0 && i < 7 && j > 0 && j < 7 && r() < 0.26) c = hex(r() < 0.3 ? ORE_SHINE[ore] : ORES[ore]);
+        c = shade(c, i, j);
+        if (inT) c = c.map((v) => Math.floor(v * 0.6));
+      }
+      put(x, y, c);
+    }
+    if (r() < 0.06) { put(x, top - 1, hex('#3a8a2c')); put(x, top - 2, hex(pickOf(r, FLOWER_COLORS))); }
+  }
+
+  // inside the mine shaft: beam, posts, rails, cobwebs, minecart, torches
+  const tx0 = c0 * BLOCK, tx1 = (c1 + 1) * BLOCK;
+  for (let x = tx0; x < tx1; x++) { put(x, ceil, hex('#7a5530')); put(x, ceil + 1, hex('#4a311c')); }
+  for (let c = c0 + 2; c < c1; c += 4) { const x = c * BLOCK + 3; for (let y = ceil; y < floor; y++) { put(x, y, hex('#7a5530')); put(x + 1, y, hex('#4a311c')); } }
+  for (let x = tx0; x < tx1; x++) { put(x, floor - 2, hex('#8d96a0')); if (x % 3 !== 2) put(x, floor - 1, hex('#3d2a18')); }
+  stamp(WEB, tx0, ceil + 2, { W: '#8c8e96' });
+  stamp(WEB, tx1 - 6, ceil + 2, { W: '#8c8e96' }, true);
+  stamp(CART, Math.floor((tx0 + tx1) / 2) - 14, floor - 2 - CART.length, { K: '#24252b', S: '#646c78', s: '#9aa3ad', g: ORES[0], O: ORES[3], b: ORES[2], G: ORES[1] });
+  const torches = [0.36, 0.66].map((f) => [Math.round(tx0 + (tx1 - tx0) * f), ceil + 5]);
+  for (const [tx, ty] of torches) for (let y = ty; y < ty + 5; y++) put(tx, y, hex('#6b4423'));
+  const minerScale = 0.8, dogW = 26 * minerScale, dogH = 18 * minerScale, foot = floor - 2;
+  const miners = [[tx0 + 1 + dogW / 2, foot - dogH / 2, true], [tx1 - 1 - dogW / 2, foot - dogH / 2, false]];
+  const lamps = miners.map(([x, y, left]) => [x + (left ? -1 : 1) * 5, y - 4]);
+
+  // light: the stone gets a little darker deeper down, brighter near torches, helmet lamps and shiny ore
+  const lights = torches.map(([x, y]) => [x, y, 34, 0.95])
+    .concat(lamps.map(([x, y], k) => [x + (k === 0 ? -8 : 8), y + 5, 22, 0.9]))
+    .concat(ores.map(([x, y]) => [x, y, 6, 0.35]));
+  const warm = torches.map(([x, y]) => [x, y - 1, 16, [255, 140, 30], 0.26]).concat(lamps.map(([x, y]) => [x, y, 6, [255, 230, 120], 0.3]));
+  for (let y = STONE_TOP - 6; y < h; y++) for (let x = 0; x < w; x++) {
+    if (y < Math.floor(near(x))) continue;
+    let d = y < STONE_TOP ? 0.25 * (y - (STONE_TOP - 6)) / 6 : 0.12 + 0.38 * (y - STONE_TOP) / (h - STONE_TOP);
+    for (const [lx, ly, rad, a] of lights) { const dist = Math.hypot(x - lx, y - ly); if (dist < rad) d *= 1 - a * (1 - dist / rad); }
+    let [cr, cg, cb] = get(x, y);
+    cr *= 1 - d; cg *= 1 - d; cb = cb * (1 - d) + 8 * d;
+    for (const [lx, ly, rad, col, a] of warm) { const dist = Math.hypot(x - lx, y - ly); if (dist < rad) { const f = a * (1 - dist / rad); cr += col[0] * f; cg += col[1] * f; cb += col[2] * f; } }
+    put(x, y, [Math.min(255, cr | 0), Math.min(255, cg | 0), Math.min(255, cb | 0)]);
+  }
+  return { img, near, mid, torches, miners, minerScale };
+}
+
+// ---------- screen setup ----------
+let W = 1, H = 1, aspect = 1, artW = 0, scene = null, bgCanvas = null;
+let title = null, playWord = null, loadingWord = null;
+const ballSize = 0.17;
+const ballTex = ballTextures();
+const cloudImg = sprite(CLOUD, { W: '#ffffff', G: '#dbe9f7' });
+const fetchBallImg = sprite(BALL, { R: '#e83a2c', W: '#ffffff' });
+const minerFrames = MINER_FURS.map((fur, k) => [false, true].map((down) => [0, 1].map((tail) => sprite(minerRows(down, tail), { ...MINER_FIXED, ...fur }, k === 0))));
+const dogTexCache = {};
+const dogTex = (fur, legs, tail, left) => { const key = fur + legs + tail + left; return dogTexCache[key] || (dogTexCache[key] = sprite(dogRows(legs, tail), { ...DOG_FIXED, ...DOG_FURS[fur] }, left)); };
+let clouds = [];
+
+function resize() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight; aspect = W / H;
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const newArtW = Math.max(80, Math.round(ART_H * aspect));
+  if (newArtW !== artW) {
+    artW = newArtW;
+    scene = buildScene(artW);
+    bgCanvas = document.createElement('canvas'); bgCanvas.width = artW; bgCanvas.height = ART_H;
+    bgCanvas.getContext('2d').putImageData(scene.img, 0, 0);
+    clouds = [[0.12, 46, 1.0], [0.3, 38, 0.8], [0.66, 50, 1.1], [0.95, 34, 0.7]].map(([cx, cy, s], k) => ({ x: cx * artW, y: cy, s, speed: (0.012 + 0.006 * k) * ART_H }));
+    chaserX = artW * 0.5;
+  }
+  title = makeWord('GLOCINSHMEEL IO', 0.355, aspect * 0.9, 0.022, ['gold', 'green', 'blue']);
+  playWord = makeWord('PLAY', 0, ballSize * 0.62, 0.0065, ['white']);
+  loadingWord = makeWord('LOADING', 0.33, 0.5, 0.011, ['white']);
+}
+const ax2x = (ax) => ax * W / artW, ay2y = (ay) => ay * H / ART_H;
+const ux2x = (ux) => W / 2 + ux * H, uy2y = (uy) => H / 2 - uy * H;
+function drawArt(img, cx, cy, w, h) { ctx.drawImage(img, ax2x(cx - w / 2), ay2y(cy - h / 2), w * W / artW, h * H / ART_H); }
+// draw one letter with its grid centered at (px, py) on screen
+function drawLetter(L, size, px, py) {
+  const w = (L.cols + 2 * PAD) * size * H, h = (L.rows + 2 * PAD) * size * H;
+  ctx.drawImage(L.c, px - w / 2, py - h / 2, w, h);
+}
+function drawText(str, uy, sizeFrac, font, color, weight = '') {
+  ctx.font = `${weight} ${Math.round(sizeFrac * H)}px ${font}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = color;
+  ctx.fillText(str, W / 2, uy2y(uy));
+}
+const outBounce = (t) => { const n = 7.5625, d = 2.75; if (t < 1 / d) return n * t * t; if (t < 2 / d) return n * (t -= 1.5 / d) * t + 0.75; if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + 0.9375; return n * (t -= 2.625 / d) * t + 0.984375; };
+const outBack = (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+
+// ---------- state ----------
+let clock = 0, mode = 'title';            // title, loading, game
+const ball = { x: 0, y: 0.1, vx: 0.42, vy: 0.9, squash: 0, grow: 0, caught: false, rot: 0 };
+let chaserX = 0, chaserJump = 0, chaserLeft = false;
+let chips = [];
+const minerDown = [false, false];
+let sparkle = null, sparkleTimer = 0;
+let flash = null;
+let load = null;
+
+// ---------- the dogs on the hills and in the mine ----------
+function dogsAndMine(t, dt) {
+  const w = artW, sc = scene, loop = w + 60;
+  const stride = Math.floor(t / 0.11) % 2 ? 'run1' : 'run2', other = stride === 'run1' ? 'run2' : 'run1';
+  const wag = Math.floor(t / 0.15) % 2;
+  const put = (fur, size, x, ground, legs, tail, left, lift = 0) => drawArt(dogTex(fur, legs, tail, left), x, ground - 7 * size - lift, 20 * size, 14 * size);
+  // the brown dog sits on the middle hill wagging and hopping; the gray dog trots the other way
+  { const x = w * 0.22, hop = (t % 2.2) < 0.9 ? (() => { const p = t / 2.2, f = p - Math.floor(p); return 4 * f * (1 - f); })() * 5 : 0; put(3, 0.6, x, sc.mid(x), 'stand', Math.floor(t / 0.09) % 2, false, hop); }
+  { const x = w + 30 - (t * 9) % loop; put(4, 0.6, x, sc.mid(x), stride, wag, true, Math.abs(Math.sin(t * 10)) * 1.2); }
+  // the white dog plays fetch, running under the ball and jumping to catch it
+  const period = 2.6, throwN = Math.floor(t / period), p = (t % period) / period;
+  const left = w * 0.56, right = w * 0.9, [start, end] = throwN % 2 === 0 ? [left, right] : [right, left];
+  const fx = start + (end - start) * Math.pow(p, 1.4), jump = Math.sin(Math.min(1, Math.max(0, (p - 0.74) / 0.26)) * Math.PI) * 8, fLeft = end < start;
+  put(2, 1, fx, sc.near(fx), stride, wag, fLeft, jump);
+  let bx, by;
+  if (p < 0.93) { bx = start + (end - start) * p; by = sc.near(bx) - 9 - 24 * 4 * p * (1 - p); }
+  else { bx = fx + (fLeft ? -9 : 9); by = sc.near(fx) - 8.5 - jump; }
+  drawArt(fetchBallImg, bx, by, 4, 4);
+  // the golden dog runs along the front hill and the black-and-white dog chases it
+  const lead = (t * 24) % loop - 30;
+  [lead, lead - 30 > -30 ? lead - 30 : lead - 30 + loop].forEach((x, k) => put(k, 1, x, sc.near(x), k === 0 ? stride : other, wag, false, Math.abs(Math.sin(t * 13 + k * 1.7)) * 2));
+  // the red dog runs after the bouncy PLAY ball and jumps for it
+  {
+    const ballAX = (ball.x / aspect + 0.5) * w, ballAY = (0.5 - ball.y) * ART_H;
+    const playing = mode === 'title' && !ball.caught;
+    const target = playing ? Math.min(Math.max(ballAX, 12), w - 12) : chaserX;
+    const dx = target - chaserX, moving = Math.abs(dx) > 2;
+    if (moving) { const step = 42 * Math.min(dt, 1 / 30); chaserX += Math.max(-step, Math.min(step, dx)); chaserLeft = dx < 0; }
+    const ground = sc.near(chaserX);
+    if (playing && chaserJump <= 0 && Math.abs(ballAX - chaserX) < 14 && ballAY > ground - 45 && ballAY < ground + 10) chaserJump = 0.5;
+    let lift = 0;
+    if (chaserJump > 0) { chaserJump -= dt; lift = Math.sin((1 - Math.max(0, chaserJump) / 0.5) * Math.PI) * 12; }
+    put(5, 1, chaserX, ground, moving || lift ? stride : 'stand', Math.floor(t / 0.1) % 2, chaserLeft, lift);
+  }
+  // the miner dogs dig at each end of the mine shaft
+  sc.miners.forEach(([x, y, mLeft], k) => {
+    const down = (t / 0.7 + [0, 0.45][k]) % 1 > 0.55;
+    if (down && !minerDown[k]) for (let i = 0; i < 5; i++) chips.push({ x: x + (mLeft ? -1 : 1) * 13 * sc.minerScale, y: y + 3, vx: (mLeft ? 1 : -1) * rand(0.03, 0.1) * ART_H, vy: -rand(0.05, 0.12) * ART_H, life: 0.6, col: Math.random() < 0.5 ? ORES[[0, 2][k]] : '#7b7b7b' });
+    minerDown[k] = down;
+    drawArt(minerFrames[k][down ? 1 : 0][Math.floor(t / 0.22 + k) % 2], x, y, 26 * sc.minerScale, 18 * sc.minerScale);
+  });
+  chips = chips.filter((c) => (c.life -= dt) > 0);
+  for (const c of chips) { c.vy += 0.9 * ART_H * dt; c.x += c.vx * dt; c.y += c.vy * dt; ctx.fillStyle = c.col; ctx.fillRect(ax2x(c.x - 0.5), ay2y(c.y - 0.5), W / artW, H / ART_H); }
+  // torch flames flicker
+  for (const [tx, ty] of sc.torches) { const fh = 3 + (Math.random() < 0.5 ? 0 : 1); ctx.fillStyle = '#ffb000'; ctx.fillRect(ax2x(tx - 0.5), ay2y(ty - 1.5 - fh / 2), 2 * W / artW, fh * H / ART_H); }
+}
+
+function drawBackground(dt) {
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bgCanvas, 0, 0, W, H);
+  for (const c of clouds) { c.x += c.speed * dt; if (c.x > artW + 12) c.x = -12; drawArt(cloudImg, c.x, c.y, 20 * c.s, 7 * c.s); }
+  dogsAndMine(clock, dt);
+}
+
+// ---------- title: letters, words, sparkle ----------
+function drawTitle(dt) {
+  ctx.imageSmoothingEnabled = true;
+  const size = title.size, float = clock > 2.6 ? Math.sin((clock - 2.6) * 1.6) * size * 0.5 : 0;
+  for (const L of title.letters) {
+    let y = L.cy + float;
+    if (!reduceMotion) { const t0 = 0.3 + L.n * 0.12, k = Math.min(1, Math.max(0, (clock - t0) / 0.5)); y += (1 - outBounce(k)) * 0.8; }
+    L.drawY = y;
+    drawLetter(L, size, ux2x(L.x + L.cols * size / 2), uy2y(y));
+  }
+  // a sparkle twinkles on a random spot of a random letter
+  sparkleTimer -= dt;
+  if (clock > 2.6 && sparkleTimer <= 0) {
+    sparkleTimer = 0.5;
+    const L = title.letters[Math.floor(Math.random() * title.letters.length)], s = L.spots[Math.floor(Math.random() * L.spots.length)];
+    sparkle = { L, s, t: 0 };
+  }
+  if (sparkle) {
+    sparkle.t += dt;
+    const k = 1 - sparkle.t / 0.45;
+    if (k <= 0) sparkle = null;
+    else {
+      const { L, s } = sparkle, cx = ux2x(L.x + s[0] + size * 0.2), cy = uy2y(L.drawY + L.rows * size / 2 - s[1] + size * 0.2), r = size * 0.55 * k * H;
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.fill();
+    }
+  }
+  drawText('DIG.   BUILD.   EXPLORE.', 0.25, 0.026, 'Silkscreen, "Courier New", monospace', 'rgb(20,52,110)', '700');
+  drawText('CATCH THE BALL TO PLAY!', 0.19, 0.03, 'Silkscreen, "Courier New", monospace', 'rgb(200,24,30)', '700');
+}
+
+// ---------- the bouncy PLAY ball ----------
+function updateBall(dt) {
+  if (ball.caught) { ball.grow = Math.min(1, ball.grow + dt / 0.15); return; }
+  dt = Math.min(dt, 1 / 30);
+  const r = ballSize / 2;
+  ball.vy -= 1.5 * dt;
+  ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+  const lft = -aspect / 2 + r, rgt = aspect / 2 - r;
+  if (ball.x < lft || ball.x > rgt) { ball.x = Math.min(Math.max(ball.x, lft), rgt); ball.vx = -ball.vx; }
+  if (ball.y > 0.5 - r) { ball.y = 0.5 - r; ball.vy = -Math.abs(ball.vy); }
+  if (ball.y < -0.5 + r) {
+    ball.y = -0.5 + r;
+    ball.vy = rand(1.15, 1.45);
+    ball.vx = Math.sign(ball.vx || 1) * rand(0.3, 0.62);
+    ball.squash = 0.22;
+  }
+  ball.squash = Math.max(0, ball.squash - dt);
+  ball.rot += ball.vx * 260 * dt * Math.PI / 180;
+}
+function drawBall() {
+  ctx.imageSmoothingEnabled = true;
+  const k = ball.squash / 0.22, grow = 1 + 0.35 * outBack(ball.grow);
+  const d = ballSize * H;
+  ctx.save();
+  ctx.translate(ux2x(ball.x), uy2y(ball.y));
+  ctx.scale((1 + 0.18 * k) * grow, (1 - 0.2 * k) * grow);
+  ctx.drawImage(ballTex.body, -d / 2, -d / 2, d, d);
+  ctx.save();
+  ctx.rotate(-ball.rot);
+  for (const L of playWord.letters) drawLetter(L, playWord.size, (L.x + L.cols * playWord.size / 2) * H, 0);
+  ctx.restore();
+  ctx.drawImage(ballTex.gloss, -d / 2, -d / 2, d, d);
+  ctx.restore();
+}
+function overBall(px, py) {
+  const ux = (px - W / 2) / H, uy = (H / 2 - py) / H;
+  return Math.hypot(ux - ball.x, uy - ball.y) < ballSize / 2 * 1.08;
+}
+function catchBall() {
+  if (mode !== 'title' || ball.caught || flash) return;
+  ball.caught = true; ball.grow = 0;
+  startFlash(startLoading);
+}
+
+// ---------- colored-block flash between screens ----------
+const FLASH_COLS = ['#a6ff4d', '#6fd0ff', '#ffd34d', '#7a2bd6', '#000000'];
+function startFlash(after) {
+  const cell = 16 * H / ART_H, cols = Math.ceil(W / cell), rows = Math.ceil(H / cell), cells = [];
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) cells.push({ x: c * cell, y: r * cell, col: FLASH_COLS[Math.floor(Math.random() * FLASH_COLS.length)], show: rand(0, 0.38), hide: rand(0.5, 0.88) });
+  flash = { t: 0, cells, cell, after };
+}
+function drawFlash(dt) {
+  if (!flash) return;
+  flash.t += dt;
+  if (flash.t >= 0.38 && flash.after) { const f = flash.after; flash.after = null; f(); }
+  for (const c of flash.cells) if (c.show <= flash.t && flash.t < c.hide) { ctx.fillStyle = c.col; ctx.fillRect(c.x, c.y, flash.cell + 1, flash.cell + 1); }
+  if (flash.t > 0.9) flash = null;
+}
+
+// ---------- loading screen: 1...2......4 ... 1024! ----------
+const COUNT_TEXT = '1...2......4......8.....16......32.......64........128........256.....512.....1024!';
+const COUNT_NUMBERS = [...COUNT_TEXT.matchAll(/\d+/g)].map((m) => ({ text: m[0], end: m.index + m[0].length }));
+const SLOT_COLS = ['rgb(255,200,40)', 'rgb(92,214,96)', 'rgb(76,156,255)'];
+function startLoading() { mode = 'loading'; load = { t: 0, shown: '', word: null, pop: 0, done: false }; }
+function drawLoading(dt) {
+  load.t += dt;
+  ctx.fillStyle = 'rgba(6,10,26,0.82)'; ctx.fillRect(0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+  for (const L of loadingWord.letters) drawLetter(L, loadingWord.size, ux2x(L.x + L.cols * loadingWord.size / 2), uy2y(L.cy));
+  const shown = Math.min(COUNT_TEXT.length, Math.floor(load.t / 0.06));
+  const done = COUNT_NUMBERS.filter((m) => m.end <= shown);
+  const number = (done.length ? done[done.length - 1].text : '') + (shown === COUNT_TEXT.length ? '!' : '');
+  if (number && number !== load.shown) {
+    load.shown = number;
+    load.word = makeWord(number, 0, 0.7, 0.02, [['gold', 'green', 'blue'][done.length % 3]]);
+    load.pop = 0;
+  }
+  if (load.word) {
+    load.pop = Math.min(1, load.pop + dt / 0.18);
+    const s = 1.35 - 0.35 * outBack(load.pop);
+    ctx.save(); ctx.translate(ux2x(0), uy2y(0.1)); ctx.scale(s, s);
+    for (const L of load.word.letters) drawLetter(L, load.word.size, (L.x + L.cols * load.word.size / 2) * H, 0);
+    ctx.restore();
+  }
+  // the counting line, typed out a little at a time
+  const fs = Math.min(0.042 * H, W * 0.9 / 44);
+  ctx.font = `${Math.round(fs)}px VT323, "Courier New", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgb(219,230,255)'; ctx.fillText(COUNT_TEXT.slice(0, shown), W / 2, uy2y(-0.08));
+  // a bar with one slot for each number
+  const n = COUNT_NUMBERS.length, sw = 0.052, gap = 0.012, x0 = -(n * sw + (n - 1) * gap) / 2;
+  for (let i = 0; i < n; i++) {
+    const x = ux2x(x0 + i * (sw + gap)), y = uy2y(-0.17);
+    ctx.fillStyle = 'rgb(8,8,14)'; ctx.fillRect(x - 0.005 * H, y - 0.023 * H, (sw + 0.01) * H, 0.046 * H);
+    ctx.fillStyle = i < done.length ? SLOT_COLS[i % 3] : 'rgb(40,44,58)'; ctx.fillRect(x, y - 0.017 * H, sw * H, 0.034 * H);
+  }
+  drawText('W A S D walk  ·  mouse look  ·  SPACE jump  ·  F ride Nugget  ·  E menu', -0.26, 0.022, 'Silkscreen, "Courier New", monospace', 'rgb(170,180,210)');
+  if (shown === COUNT_TEXT.length && !load.done && load.t > COUNT_TEXT.length * 0.06 + 1.6) { load.done = true; startFlash(enterGame); }
+}
+
+// ---------- into the game: press the game's own PLAY button ----------
+function enterGame() {
+  mode = 'game';
+  window.gtShowing = false;                // let the game draw again
+  root.classList.add('done');
+  const go = (tries) => {
+    const btn = document.getElementById('play'), start = document.getElementById('start');
+    if (btn) btn.click();
+    if (start && !start.hidden && tries > 0) setTimeout(() => go(tries - 1), 300);
+  };
+  go(40);
+}
+
+// ---------- input ----------
+cv.addEventListener('pointerdown', (e) => { if (mode === 'title' && overBall(e.clientX, e.clientY)) catchBall(); });
+cv.addEventListener('pointermove', (e) => { root.style.cursor = mode === 'title' && !ball.caught && overBall(e.clientX, e.clientY) ? 'pointer' : 'default'; });
+addEventListener('keydown', (e) => { if (mode === 'title' && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); catchBall(); } });
+addEventListener('resize', resize);
+
+// ---------- every frame ----------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
+  if (mode === 'game') {
+    ctx.clearRect(0, 0, W, H);
+    drawFlash(dt);
+    if (!flash) { root.remove(); return; }
+    requestAnimationFrame(frame); return;
+  }
+  drawBackground(dt);
+  if (mode === 'title') { updateBall(dt); drawTitle(dt); drawBall(); }
+  else drawLoading(dt);
+  drawFlash(dt);
+  requestAnimationFrame(frame);
+}
+resize();
+requestAnimationFrame(frame);
+// test hook: only when the page is opened with #debug
+if (location.hash.startsWith('#debug')) window.gt = { ball, catchBall, get mode() { return mode; }, toPx: (ux, uy) => [ux2x(ux), uy2y(uy)] };
+// fonts may arrive after the first frames; nothing to rebuild, text is drawn fresh every frame
+})();
+</script>
 </body>
 </html>
