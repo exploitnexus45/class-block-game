@@ -170,6 +170,45 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 #tplace { bottom: calc(190px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 640px) { .slot .blk { inset: 9px; } .slot .n { font-size: 14px; } }
 @media (prefers-reduced-motion: reduce) { #chat div { transition: none; } #hurt { transition: none; } }
+/* ---------- block-game style inventory (light grey bevelled panels, sunken slots) ---------- */
+#craft.mc { background: rgba(8, 8, 12, .62); }
+#craft.mc .card { --s: min(54px, calc((100vw - 74px) / 9)); background: #c6c6c6; color: #3f3f3f; width: auto; max-width: calc(100vw - 20px); padding: 16px 18px 14px; border-radius: 4px;
+  box-shadow: 0 0 0 3px #000, inset 4px 4px 0 #fff, inset -4px -4px 0 #555, 0 24px 70px rgba(0,0,0,.6); }
+#craft.mc #craftT { display: none; }
+#craft.mc #recipes { display: block; }
+.mcl { font: 23px/1 var(--body); color: #3f3f3f; margin: 2px 0 6px; }
+.mcgrid { display: grid; grid-template-columns: repeat(9, var(--s)); }
+.mcs { width: var(--s); height: var(--s); position: relative; display: block; padding: 0; border: 0; margin: 0; background: #8b8b8b; cursor: pointer; font-family: var(--body);
+  box-shadow: inset 3px 3px 0 #373737, inset -3px -3px 0 #fff; }
+.mcs:hover { background: #a6a6a6; }
+.mcs:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
+.mcs img.art, .mcs .art { position: absolute; inset: 14%; width: 72%; height: 72%; object-fit: contain; pointer-events: none; }
+.mcs .n { position: absolute; right: 3px; bottom: -2px; font: calc(var(--s) * .44)/1 var(--body); color: #fff; text-shadow: 2px 2px 0 #3f3f3f; pointer-events: none; }
+.mcs.sel { box-shadow: inset 0 0 0 3px #fff, inset 3px 3px 0 #373737; background: #b4b4b4; }
+.mcs.bad { background: #9b7b7b; }
+.mcs.done::after { content: "✓"; position: absolute; right: 3px; top: 0; font: 20px var(--body); color: #3c8a2c; text-shadow: 1px 1px 0 #fff; }
+.mcs.ghost img { opacity: .28; filter: grayscale(1); }
+.mcs.big { width: calc(var(--s) * 1.45); height: calc(var(--s) * 1.45); }
+.mctop { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; }
+.mccol { display: grid; }
+.mcplayer { width: calc(var(--s) * 2.8); height: calc(var(--s) * 4); background: #000; box-shadow: inset 3px 3px 0 #373737, inset -3px -3px 0 #fff; display: grid; place-items: end center; overflow: hidden; }
+.mcplayer canvas { width: 96%; image-rendering: pixelated; }
+.mccraft { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.mcarrow { width: calc(var(--s) * .62); height: calc(var(--s) * .46); background: #8b8b8b; clip-path: polygon(0 32%, 58% 32%, 58% 0, 100% 50%, 58% 100%, 58% 68%, 0 68%); }
+.mcarrow.go { background: #fff; }
+.mcflame { width: calc(var(--s) * .5); height: calc(var(--s) * .5); background: #8b8b8b; clip-path: polygon(50% 0, 75% 35%, 90% 70%, 72% 100%, 28% 100%, 10% 70%, 25% 35%); margin: 4px auto; }
+.mcflame.on { background: linear-gradient(#ffe46b, #ff7a1a 60%, #c2280e); }
+.mcgap { height: 12px; }
+.mcpanel2 { margin-top: 12px; padding-top: 10px; border-top: 3px solid #a0a0a0; }
+.mcnote { font: 19px/1.15 var(--body); color: #4a4a4a; margin: 8px 0 0; max-width: calc(var(--s) * 9); }
+.mcnote b { color: #2a2a2a; font-weight: 400; }
+#craft.mc .btn { font: 22px var(--body); letter-spacing: 0; color: #fff; text-shadow: 2px 2px 0 #3f3f3f; background: #727272; box-shadow: inset 0 0 0 2px #000, inset 4px 4px 0 #a8a8a8, inset -4px -4px 0 #4a4a4a; padding: 8px; margin-top: 8px; }
+#craft.mc .btn:hover { background: #7f8fb8; }
+#craft.mc .close { background: #727272; }
+#mctip { position: fixed; z-index: 2000; pointer-events: none; background: rgba(16, 0, 16, .94); color: #fff; font: 21px/1.1 var(--body); padding: 5px 9px 6px; white-space: pre-line; max-width: 300px;
+  box-shadow: inset 0 0 0 2px #2b0a63, 0 0 0 2px rgba(16,0,16,.94); text-shadow: 2px 2px 0 #3f3f3f; }
+#mctip .need { color: #aaa; }
+#mctip .bad { color: #ff5555; }
 </style>
 
 </head>
@@ -598,6 +637,158 @@ const FACES = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 function rotX(p, a, pv) { const y = p[1]-pv[1], z = p[2]-pv[2], c = Math.cos(a), s = Math.sin(a); return [p[0], pv[1] + y*c - z*s, pv[2] + y*s + z*c]; }
 function rotZ(p, a, pv) { const x = p[0]-pv[0], y = p[1]-pv[1], c = Math.cos(a), s = Math.sin(a); return [pv[0] + x*c - y*s, pv[1] + x*s + y*c, p[2]]; }
 function rotY(p, a, pv) { const x = p[0]-pv[0], z = p[2]-pv[2], c = Math.cos(a), s = Math.sin(a); return [pv[0] + x*c + z*s, p[1], pv[2] - x*s + z*c]; }
+// ---------- Nugget Shop gear: fancy hats ----------
+function drawFancyHat(hat, part, head, bodyXf, H, Y, t) {
+  const Z = 0.49;
+  if (hat === 'beanie') {
+    const C = [0.12, 0.62, 0.66], C2 = [0.08, 0.42, 0.46];
+    part([0, Y + 0.0, Z], [0.158, 0.026, 0.148], C2, head);
+    part([0, Y + 0.05, Z], [0.15, 0.04, 0.14], C, head);
+    part([0, Y + 0.1, Z], [0.12, 0.03, 0.11], C, head);
+    for (let k = -2; k <= 2; k++) part([k * 0.05, Y + 0.05, Z + 0.141], [0.008, 0.035, 0.002], C2, head);
+    part([0, Y + 0.16, Z], [0.045, 0.04, 0.045], [0.97, 0.97, 0.97], head);
+  } else if (hat === 'chef') {
+    const W = [0.98, 0.98, 0.96], W2 = [0.88, 0.88, 0.86];
+    part([0, Y + 0.035, Z], [0.125, 0.045, 0.115], W2, head);
+    part([0, Y + 0.14, Z], [0.16, 0.07, 0.15], W, head);
+    for (const [dx, dz] of [[-0.07, 0.05], [0.07, -0.04], [0.02, 0.07], [-0.04, -0.07]]) part([dx, Y + 0.21, Z + dz], [0.06, 0.035, 0.06], W, head);
+  } else if (hat === 'santa') {
+    const R = [0.85, 0.12, 0.14], W = [1, 1, 1];
+    part([0, Y + 0.01, Z], [0.165, 0.03, 0.155], W, head);
+    for (let k = 0; k < 6; k++) part([k * k * 0.006, Y + 0.06 + k * 0.045, Z - k * 0.012], [0.13 - k * 0.019, 0.026, 0.12 - k * 0.018], R, head);
+    part([0.2, Y + 0.25, Z - 0.07], [0.04, 0.04, 0.04], W, head);
+  } else if (hat === 'viking') {
+    const M = [0.62, 0.64, 0.68], G = [0.9, 0.7, 0.25], HN = [0.96, 0.93, 0.82];
+    part([0, Y + 0.04, Z], [0.15, 0.07, 0.14], M, head);
+    part([0, Y + 0.11, Z], [0.11, 0.03, 0.1], M, head);
+    part([0, Y + 0.0, Z], [0.155, 0.018, 0.145], G, head);
+    part([0, Y + 0.08, Z + 0.141], [0.012, 0.07, 0.004], G, head);
+    for (const sx of [1, -1]) for (let k = 0; k < 5; k++) part([sx * (0.16 + k * 0.035), Y + 0.06 + k * k * 0.012, Z], [0.03 - k * 0.004, 0.028 - k * 0.003, 0.03 - k * 0.004], k > 3 ? [0.75, 0.7, 0.6] : HN, head);
+  } else if (hat === 'propeller') {
+    const Q = [[0.9, 0.2, 0.2], [0.98, 0.82, 0.15], [0.2, 0.45, 0.95], [0.25, 0.75, 0.3]];
+    for (let k = 0; k < 4; k++) part([(k % 2 ? 1 : -1) * 0.075, Y + 0.04, Z + (k < 2 ? 1 : -1) * 0.07], [0.075, 0.05, 0.07], Q[k], head);
+    part([0, Y + 0.0, Z + 0.16], [0.13, 0.008, 0.06], Q[0], head);
+    part([0, Y + 0.13, Z], [0.008, 0.045, 0.008], [0.3, 0.3, 0.32], head);
+    const spin = bodyXf((p) => H(rotY(p, t * 22, [0, 0, Z])));
+    part([0, Y + 0.18, Z], [0.2, 0.006, 0.03], [0.98, 0.82, 0.15], spin);
+    part([0, Y + 0.18, Z], [0.03, 0.006, 0.2], [0.9, 0.2, 0.2], spin);
+  } else if (hat === 'flower') {
+    const P = [[1, 0.5, 0.7], [1, 0.9, 0.3], [1, 1, 1], [0.7, 0.5, 1], [1, 0.55, 0.35]];
+    for (let k = 0; k < 12; k++) {
+      const a = k / 12 * Math.PI * 2, x = Math.cos(a) * 0.14, z = Z + Math.sin(a) * 0.13;
+      part([x, Y + 0.02, z], [0.022, 0.012, 0.022], [0.3, 0.65, 0.25], head);
+      if (k % 2 === 0) { part([x, Y + 0.04, z], [0.03, 0.022, 0.03], P[(k / 2) % P.length], head); part([x, Y + 0.065, z], [0.012, 0.006, 0.012], [1, 0.85, 0.2], head); }
+    }
+  } else if (hat === 'knight') {
+    const S = [0.75, 0.77, 0.8], S2 = [0.55, 0.57, 0.6], PL = [0.85, 0.1, 0.15];
+    part([0, Y + 0.035, Z], [0.17, 0.06, 0.16], S, head);
+    part([0, Y + 0.1, Z], [0.13, 0.025, 0.12], S, head);
+    part([0, Y - 0.005, Z + 0.15], [0.16, 0.02, 0.015], S2, head);
+    part([0, Y + 0.06, Z], [0.012, 0.075, 0.165], S2, head);
+    for (let k = 0; k < 6; k++) part([0, Y + 0.16 + Math.sin(k * 0.6) * 0.04, Z + 0.1 - k * 0.055], [0.022, 0.04 - k * 0.003, 0.03], PL, head);
+  } else if (hat === 'unicorn') {
+    for (let k = 0; k < 7; k++) part([0, Y + 0.02 + k * 0.045, 0.58 + k * 0.022], [0.04 - k * 0.005, 0.025, 0.04 - k * 0.005], GLOWC(k % 2 ? [1, 0.85, 0.4] : [1, 0.97, 0.9]), head);
+    const MANE = [[1, 0.4, 0.6], [1, 0.75, 0.3], [0.5, 0.85, 1], [0.7, 0.5, 1]];
+    for (let k = 0; k < 4; k++) part([0, Y + 0.03 - k * 0.01, 0.46 - k * 0.07], [0.04, 0.03, 0.04], MANE[k], head);
+  } else if (hat === 'halo') {
+    const bob = Math.sin(t * 2.2) * 0.02, G = GLOWC([1, 0.92, 0.45]);
+    for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; part([Math.cos(a) * 0.13, Y + 0.17 + bob, Z + Math.sin(a) * 0.12], [0.022, 0.01, 0.022], G, head); }
+  } else if (hat === 'diamondcrown' || hat === 'galaxycrown') {
+    const gal = hat === 'galaxycrown';
+    const C = gal ? [0.32, 0.22, 0.62] : [0.55, 0.9, 0.98], GEM = gal ? GLOWC(hsl((t * 0.3) % 1, 1, 0.65)) : GLOWC([0.95, 0.2, 0.55]);
+    for (const [cx, cz, hx, hz] of [[0, 0.6, 0.12, 0.012], [0, 0.38, 0.12, 0.012], [0.12, 0.49, 0.012, 0.11], [-0.12, 0.49, 0.012, 0.11]]) part([cx, Y + 0.05, cz], [hx, 0.055, hz], C, head);
+    for (const [cx, cz, h] of [[-0.08, 0.6, 1], [0, 0.6, 1.6], [0.08, 0.6, 1], [-0.08, 0.38, 1], [0.08, 0.38, 1], [0.12, 0.49, 1.3], [-0.12, 0.49, 1.3]]) { part([cx, Y + 0.12 + h * 0.02, cz], [0.02, 0.03 * h, 0.02], C, head); part([cx, Y + 0.155 + h * 0.05, cz], [0.012, 0.012, 0.012], GEM, head); }
+    part([0, Y + 0.06, 0.613], [0.028, 0.028, 0.005], GEM, head);
+    if (gal) for (let k = 0; k < 5; k++) { const a = t * 1.5 + k * 1.256; part([Math.cos(a) * 0.22, Y + 0.12 + Math.sin(t * 3 + k) * 0.05, Z + Math.sin(a) * 0.2], [0.015, 0.015, 0.015], GLOWC(hsl((k * 0.2 + t * 0.2) % 1, 1, 0.7)), head); }
+  }
+}
+// ---------- glasses (eyes sit at y 0.6, the face is at z 0.642) ----------
+function drawGlasses(g, part, head, t, run) {
+  const Zf = 0.652, D = [0.06, 0.05, 0.07];
+  const arms = (col) => { for (const sx of [1, -1]) part([sx * 0.158, 0.61, 0.58], [0.004, 0.008, 0.07], col, head); };
+  if (g === 'sun' || g === 'star') {
+    const F = g === 'star' ? GOLDC : D, L = g === 'star' ? [0.25, 0.2, 0.05] : [0.04, 0.04, 0.06];
+    for (const sx of [1, -1]) { part([sx * 0.08, 0.6, Zf], [0.058, 0.04, 0.005], F, head); part([sx * 0.08, 0.597, Zf + 0.004], [0.048, 0.03, 0.004], L, head); }
+    if (g === 'star') for (const sx of [1, -1]) { part([sx * 0.08, 0.6, Zf + 0.009], [0.012, 0.045, 0.003], GOLDC, head); part([sx * 0.08, 0.6, Zf + 0.009], [0.045, 0.012, 0.003], GOLDC, head); }
+    part([0, 0.615, Zf], [0.025, 0.007, 0.004], F, head); arms(F);
+  } else if (g === 'nerd') {
+    for (const sx of [1, -1]) { part([sx * 0.08, 0.6, Zf], [0.05, 0.04, 0.004], D, head); part([sx * 0.08, 0.6, Zf + 0.003], [0.038, 0.028, 0.003], [0.75, 0.88, 0.95], head); }
+    part([0, 0.61, Zf], [0.03, 0.008, 0.004], D, head); arms(D);
+  } else if (g === '3d') {
+    const W = [0.97, 0.97, 0.95];
+    for (const sx of [1, -1]) { part([sx * 0.08, 0.6, Zf], [0.055, 0.04, 0.004], W, head); part([sx * 0.08, 0.6, Zf + 0.003], [0.042, 0.028, 0.003], sx > 0 ? [0.2, 0.85, 0.95] : [0.95, 0.15, 0.2], head); }
+    part([0, 0.61, Zf], [0.03, 0.01, 0.004], W, head); arms(W);
+  } else if (g === 'heart') {
+    const P = [1, 0.3, 0.55];
+    for (const sx of [1, -1]) {
+      part([sx * 0.08 - 0.02, 0.615, Zf], [0.022, 0.02, 0.004], P, head); part([sx * 0.08 + 0.02, 0.615, Zf], [0.022, 0.02, 0.004], P, head);
+      part([sx * 0.08, 0.59, Zf], [0.035, 0.022, 0.004], P, head); part([sx * 0.08, 0.565, Zf], [0.015, 0.012, 0.004], P, head);
+    }
+    part([0, 0.61, Zf], [0.02, 0.007, 0.004], P, head); arms(P);
+  } else if (g === 'monocle') {
+    for (const [dx, dy, hx, hy] of [[0, 0.04, 0.045, 0.006], [0, -0.04, 0.045, 0.006], [0.045, 0, 0.006, 0.045], [-0.045, 0, 0.006, 0.045]]) part([0.08 + dx, 0.6 + dy, Zf], [hx, hy, 0.004], GOLDC, head);
+    part([0.08, 0.6, Zf], [0.04, 0.035, 0.002], [0.85, 0.93, 1], head);
+    for (let k = 0; k < 5; k++) part([0.12 + k * 0.012, 0.55 - k * 0.03, Zf - k * 0.01], [0.004, 0.012, 0.004], GOLDC, head);
+  } else if (g === 'goggles') {
+    const BR = [0.42, 0.26, 0.12], BRASS = [0.85, 0.65, 0.3];
+    part([0, 0.62, 0.5], [0.165, 0.022, 0.155], BR, head);
+    for (const sx of [1, -1]) { part([sx * 0.075, 0.61, Zf + 0.01], [0.05, 0.045, 0.02], BRASS, head); part([sx * 0.075, 0.61, Zf + 0.032], [0.036, 0.032, 0.004], [0.5, 0.85, 0.75], head); }
+  } else if (g === 'visor') {
+    const C = GLOWC([0.2, 0.95, 1]);
+    part([0, 0.605, Zf], [0.15, 0.03, 0.006], [0.15, 0.15, 0.2], head);
+    part([0, 0.605, Zf + 0.005], [0.14, 0.012, 0.003], C, head); arms([0.15, 0.15, 0.2]);
+  } else if (g === 'laser') {
+    const R = GLOWC([1, 0.15, 0.12]);
+    for (const sx of [1, -1]) { part([sx * 0.08, 0.6, Zf], [0.04, 0.035, 0.005], R, head); if (run && Math.sin(t * 9) > -0.3) part([sx * 0.08, 0.6, Zf + 0.75], [0.012, 0.012, 0.75], R, head); }
+  }
+}
+// ---------- neck and back gear (the back of the saddle is around z = -0.25, the top of the back at y = 0.53) ----------
+function drawNeckGear(n, part, body, bodyXf, B, t, run) {
+  const flap = run ? Math.sin(t * 16) * 0.18 : Math.sin(t * 1.5) * 0.05;
+  if (n === 'bowtie') {
+    const R = [0.82, 0.1, 0.15];
+    part([0, 0.4, 0.468], [0.02, 0.02, 0.012], R, body);
+    for (const sx of [1, -1]) { part([sx * 0.045, 0.4, 0.465], [0.03, 0.03, 0.01], R, body); part([sx * 0.07, 0.4, 0.466], [0.01, 0.038, 0.01], R, body); }
+  } else if (n === 'scarf') {
+    const C = [[0.9, 0.2, 0.25], [0.98, 0.95, 0.9]];
+    for (let k = 0; k < 3; k++) part([0, 0.43 + k * 0.025 - 0.025, 0.37], [0.14, 0.012, 0.11], C[k % 2], body);
+    const tail = bodyXf((p) => B(rotX(p, 0.3 + flap, [0.08, 0.42, 0.46])));
+    for (let k = 0; k < 4; k++) part([0.08, 0.38 - k * 0.05, 0.47], [0.035, 0.025, 0.012], C[k % 2], tail);
+  } else if (n === 'spikes') {
+    part([0, 0.44, 0.37], [0.135, 0.03, 0.105], [0.1, 0.1, 0.12], body);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2; part([Math.cos(a) * 0.14, 0.44, 0.37 + Math.sin(a) * 0.11], [0.015, 0.015, 0.015], [0.85, 0.87, 0.9], body); }
+  } else if (n === 'chain') {
+    for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; part([Math.cos(a) * 0.14, 0.43 - Math.max(0, Math.sin(a)) * 0.05, 0.37 + Math.sin(a) * 0.11], [0.016, 0.016, 0.016], GOLDC, body); }
+    part([0, 0.35, 0.475], [0.045, 0.045, 0.01], GOLDC, body);
+    part([0, 0.35, 0.487], [0.025, 0.025, 0.004], GLOWC([0.3, 0.9, 1]), body);
+  } else if (n === 'cape' || n === 'royal') {
+    const C = n === 'royal' ? [0.45, 0.12, 0.6] : [0.88, 0.12, 0.15], TRIM = n === 'royal' ? [0.97, 0.97, 0.97] : [0.98, 0.8, 0.2];
+    const cape = bodyXf((p) => B(rotX(p, -flap - (run ? 0.35 : 0), [0, 0.56, 0.3])));
+    part([0, 0.565, 0.0], [0.2, 0.008, 0.3], C, cape);
+    part([0, 0.45, -0.3], [0.2, 0.12, 0.008], C, cape);
+    part([0, 0.335, -0.3], [0.205, 0.012, 0.012], TRIM, cape);
+    for (const sx of [1, -1]) part([sx * 0.205, 0.565, 0.0], [0.006, 0.01, 0.3], TRIM, cape);
+    part([0, 0.5, 0.36], [0.035, 0.035, 0.03], n === 'royal' ? GOLDC : TRIM, body);
+    if (n === 'royal') for (let k = -3; k <= 3; k++) part([k * 0.055, 0.337, -0.31], [0.008, 0.008, 0.004], [0.1, 0.1, 0.1], cape);
+  } else if (n === 'jetpack') {
+    const M = [0.72, 0.74, 0.78], M2 = [0.45, 0.47, 0.52];
+    for (const sx of [1, -1]) {
+      part([sx * 0.08, 0.62, -0.12], [0.055, 0.1, 0.055], M, body);
+      part([sx * 0.08, 0.73, -0.12], [0.04, 0.015, 0.04], [0.9, 0.2, 0.2], body);
+      part([sx * 0.08, 0.505, -0.12], [0.04, 0.02, 0.04], M2, body);
+      if (run) for (let k = 0; k < 3; k++) part([sx * 0.08, 0.46 - k * 0.05 - Math.random() * 0.02, -0.12], [0.035 - k * 0.01, 0.025, 0.035 - k * 0.01], GLOWC(k ? [1, 0.55, 0.1] : [1, 0.95, 0.5]), body);
+    }
+    part([0, 0.62, -0.12], [0.03, 0.06, 0.035], M2, body);
+  } else if (n === 'wings' || n === 'dragon') {
+    const dragon = n === 'dragon', C = dragon ? [0.22, 0.6, 0.3] : [0.97, 0.97, 1], C2 = dragon ? [0.12, 0.38, 0.18] : [0.82, 0.88, 0.98], TIP = dragon ? GLOWC([1, 0.55, 0.15]) : GLOWC([1, 0.95, 0.7]);
+    const beat = Math.sin(t * (run ? 14 : 3)) * (run ? 0.6 : 0.25);
+    for (const sx of [1, -1]) {
+      const wing = bodyXf((p) => B(rotZ(p, sx * (0.35 + beat), [sx * 0.12, 0.55, 0.05])));
+      for (let k = 0; k < 4; k++) part([sx * (0.17 + k * 0.08), 0.58 + k * 0.03, 0.05 - k * 0.03], [0.045, 0.012, 0.13 - k * 0.022], k % 2 && !dragon ? C2 : C, wing);
+      for (let k = 0; k < 4; k++) part([sx * (0.17 + k * 0.08), 0.59 + k * 0.03, 0.18 - k * 0.055], [0.012, 0.014, 0.014], TIP, wing);
+    }
+  }
+}
 function buildDog(st) {
   const V = [], I = [];
   const cy = Math.cos(st.yaw), sy = Math.sin(st.yaw);
@@ -620,7 +811,7 @@ function buildDog(st) {
         const p = [c[0], c[1], c[2]]; p[a] += n[a] * h[a]; p[u] += du * h[u]; p[v] += dv * h[v];
         let w = xf(p, false); if (TR) w = TR(w);
         const wx = st.x + w[0]*cy + w[2]*sy, wz = st.z - w[0]*sy + w[2]*cy;
-        V.push(wx, st.y + w[1], wz, col[0], col[1], col[2], dir, col === GOLDC ? 3 : 0, shade);
+        V.push(wx, st.y + w[1], wz, col[0], col[1], col[2], dir, col === GOLDC || col.glow ? 3 : 0, shade);
       }
       I.push(base, base+1, base+2, base, base+2, base+3);
     }
@@ -641,19 +832,30 @@ function buildDog(st) {
   // long, low corgi body with a white chest, white belly and a fluffy white corgi butt
   part([0, 0.37 + breathe, 0.02], [0.18, 0.14 + breathe, 0.42], CORGI, body);
   part([0, 0.512, -0.02], [0.12, 0.01, 0.34], CORGI_D, body);
+  const speck = FUR_SPECKS[NUG.fur];
+  if (speck) for (let i = 0; i < 18; i++) {
+    if (Math.sin(t * 2.5 + i * 1.7) < -0.2) continue;   // twinkle
+    const side = i % 3 === 2 ? 0 : i % 3 ? 1 : -1, zz = -0.36 + ((i * 0.37) % 1) * 0.74, yy = 0.27 + ((i * 0.61) % 1) * 0.2;
+    if (side) part([side * 0.183, yy, zz], [0.003, 0.012, 0.012], GLOWC(speck(t, i)), body);
+    else part([((i * 0.53) % 1 - 0.5) * 0.3, 0.515, zz], [0.012, 0.003, 0.012], GLOWC(speck(t, i)), body);
+  }
   part([0, 0.35, 0.43], [0.13, 0.13, 0.012], CREAM, body);
   part([0, 0.228, 0.02], [0.13, 0.006, 0.36], CREAM, body);
   part([0, 0.36, -0.41], [0.17, 0.12, 0.02], CREAM, body);
   for (const sx of [1, -1]) part([sx * 0.181, 0.3, -0.3], [0.004, 0.08, 0.1], CREAM, body);
   // neck with a red polka-dot bandana and a gold sheriff star
   part([0, 0.47, 0.36], [0.12, 0.11, 0.09], CORGI, body);
-  part([0, 0.44, 0.37], [0.135, 0.035, 0.105], RED, body);
-  part([0, 0.385, 0.462], [0.07, 0.04, 0.008], RED, body);
-  part([0, 0.335, 0.464], [0.035, 0.03, 0.008], RED, body);
-  for (const [dx, dy] of [[-0.05, 0.4], [0.04, 0.39], [0, 0.34], [0.09, 0.44], [-0.09, 0.45]]) part([dx, dy, 0.472], [0.008, 0.008, 0.002], WHITE, body);
-  part([0, 0.4, 0.475], [0.03, 0.012, 0.003], GOLDC, body);
-  part([0, 0.4, 0.475], [0.012, 0.03, 0.003], GOLDC, body);
-  part([0, 0.4, 0.476], [0.022, 0.022, 0.003], GOLDC, body);
+  const neck = st.neck || NUG.neck;
+  if (neck === 'bandana' || neck === 'blue') {
+    const BC = neck === 'blue' ? [0.15, 0.35, 0.85] : RED;
+    part([0, 0.44, 0.37], [0.135, 0.035, 0.105], BC, body);
+    part([0, 0.385, 0.462], [0.07, 0.04, 0.008], BC, body);
+    part([0, 0.335, 0.464], [0.035, 0.03, 0.008], BC, body);
+    for (const [dx, dy] of [[-0.05, 0.4], [0.04, 0.39], [0, 0.34], [0.09, 0.44], [-0.09, 0.45]]) part([dx, dy, 0.472], [0.008, 0.008, 0.002], WHITE, body);
+    part([0, 0.4, 0.475], [0.03, 0.012, 0.003], GOLDC, body);
+    part([0, 0.4, 0.475], [0.012, 0.03, 0.003], GOLDC, body);
+    part([0, 0.4, 0.476], [0.022, 0.022, 0.003], GOLDC, body);
+  } else drawNeckGear(neck, part, body, bodyXf, B, t, run);
   // fox-like corgi head with a white blaze and muzzle
   part([0, 0.56, 0.5], [0.16, 0.14, 0.14], CORGI, head);
   part([0, 0.6, 0.643], [0.03, 0.09, 0.004], CREAM, head);
@@ -710,7 +912,9 @@ function buildDog(st) {
     for (const [cx, cz, hx, hz] of [[0, 0.59, 0.11, 0.012], [0, 0.39, 0.11, 0.012], [0.11, 0.49, 0.012, 0.1], [-0.11, 0.49, 0.012, 0.1]]) part([cx, HAT_Y + 0.04, cz], [hx, 0.045, hz], GOLDC, head);
     for (const [cx, cz] of [[-0.08, 0.59], [0, 0.59], [0.08, 0.59], [-0.08, 0.39], [0.08, 0.39], [0.11, 0.49], [-0.11, 0.49]]) part([cx, HAT_Y + 0.11, cz], [0.018, 0.025, 0.018], GOLDC, head);
     part([0, HAT_Y + 0.045, 0.603], [0.022, 0.022, 0.004], [0.85, 0.1, 0.15], head);
-  }
+  } else if (hat !== 'none') drawFancyHat(hat, part, head, bodyXf, H, HAT_Y, t);
+  const specs = st.glasses || NUG.glasses;
+  if (specs !== 'none') drawGlasses(specs, part, head, t, run);
   // a fluffy little corgi tail that wiggles
   const wag = Math.sin(t * (sit ? 18 : 11)) * 0.7;
   const TP = [0, 0.42, -0.42];
@@ -1567,8 +1771,11 @@ const PORTALS = [
   { name: 'Doggy SMP', key: 'survival', mode: 1, smp: true, note: 'play together with your friends!', color: '#ffd36b', pos: [21.5, 25.4, 24.5] },
 ];
 const chatEl = $('chat');
+// your dog's name: Nugget unless you rename him in the shop (every message, label and board uses it)
+let DOG_NAME = (() => { try { const n = JSON.parse(localStorage.getItem('cbg:dogName')); return typeof n === 'string' && n.trim() ? n : 'Nugget'; } catch (e) { return 'Nugget'; } })();
+const dn = (str) => DOG_NAME === 'Nugget' || str == null ? str : String(str).replace(/Nugget/g, DOG_NAME).replace(/NUGGET/g, DOG_NAME.toUpperCase());
 function say(html, ms = 9000) {
-  const d = document.createElement('div'); d.innerHTML = html; chatEl.appendChild(d);
+  const d = document.createElement('div'); d.innerHTML = dn(html); chatEl.appendChild(d);
   while (chatEl.children.length > 7) chatEl.firstChild.remove();
   setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 700); }, ms);
 }
@@ -1576,14 +1783,14 @@ let warnText = '', warnAt = 0;
 function warn(msg) { const n = performance.now(); if (msg !== warnText || n - warnAt > 3000) { say(msg, 3500); warnText = msg; warnAt = n; } }
 let bannerT = 0;
 function banner(title, text, color, ms = 2600) {
-  $('toast').hidden = false; $('toastT').textContent = title; $('toastT').style.color = color || 'var(--gold)';
-  $('toastP').textContent = text; $('toastBar').parentElement.hidden = true; bannerT = ms / 1000;
+  $('toast').hidden = false; $('toastT').textContent = dn(title); $('toastT').style.color = color || 'var(--gold)';
+  $('toastP').textContent = dn(text); $('toastBar').parentElement.hidden = true; bannerT = ms / 1000;
 }
 const labels = $('labels');
 const portalLabels = PORTALS.map((p) => { const el = document.createElement('div'); el.className = 'label'; el.style.color = p.color; el.innerHTML = `${p.name.toUpperCase()}<small>walk in to join</small>`; labels.appendChild(el); return el; });
-const trackLabel = document.createElement('div'); trackLabel.className = 'label'; trackLabel.style.color = 'var(--gold)'; trackLabel.innerHTML = 'NUGGET RACEWAY<small>ride through to start a lap</small>'; labels.appendChild(trackLabel);
+const trackLabel = document.createElement('div'); trackLabel.className = 'label'; trackLabel.style.color = 'var(--gold)'; trackLabel.innerHTML = dn('NUGGET RACEWAY<small>ride through to start a lap</small>'); labels.appendChild(trackLabel);
 const skyLabels = [0, 1, 2, 3].map(() => { const el = document.createElement('div'); el.className = 'label'; el.style.color = '#9fe07a'; el.innerHTML = 'SKY ISLAND<small>climb the blocks</small>'; labels.appendChild(el); return el; });
-const dogLabel = document.createElement('div'); dogLabel.className = 'label dog'; dogLabel.textContent = 'Nugget'; labels.appendChild(dogLabel);
+const dogLabel = document.createElement('div'); dogLabel.className = 'label dog'; dogLabel.textContent = DOG_NAME; labels.appendChild(dogLabel);
 
 function iconSVG(kind) {
   const px = {
@@ -1627,7 +1834,7 @@ function slotHTML(s) {
 }
 function setHotbar(slots) {
   const all = slots.slice(0, 9); while (all.length < 9) all.push({});
-  SLOTS = all.map((s, i) => ({ ...s, key: String(i + 1) }));
+  SLOTS = all.map((s, i) => ({ ...s, tip: dn(s.tip), key: String(i + 1) }));
   hotbar.innerHTML = '';
   SLOTS.forEach((s, i) => {
     const b = document.createElement('button'); b.className = 'slot';
@@ -1648,19 +1855,38 @@ function pick(i, quiet) {
 const WALLET = { bones: store.get('bones') || 0, earned: 0 };
 function earn(n, why) {
   if (!n) return;
+  if (typeof hasSet === 'function' && hasSet('royal')) { n *= 2; why = (why ? why + ' · ' : '') + 'ROYAL x2'; }
   WALLET.bones += n; WALLET.earned += n; store.set('bones', WALLET.bones);
   say(`<b style="color:#ffd36b">+${n} golden bone${n > 1 ? 's' : ''}</b>${why ? ' · ' + why : ''}`, 2600); sfx('coin');
 }
 // what Nugget is wearing
 const NUG_SHOP = {
-  hat: [['cowboy', 'Cowboy hat', 0], ['party', 'Party hat', 15], ['top', 'Top hat', 25], ['pirate', 'Pirate hat', 30], ['wizard', 'Wizard hat', 30], ['crown', 'Royal crown', 40], ['none', 'No hat', 0]],
-  fur: [['classic', 'Classic corgi', 0], ['golden', 'Golden', 20], ['chocolate', 'Chocolate', 20], ['snowy', 'Snowy white', 25], ['midnight', 'Midnight', 30], ['rainbow', 'RAINBOW', 60]],
-  trail: [['none', 'No trail', 0], ['bubbles', 'Bubbles', 20], ['sparkles', 'Sparkles', 25], ['hearts', 'Hearts', 25], ['fire', 'Fire', 35], ['rainbow', 'Rainbow', 40]],
+  hat: [['cowboy', 'Cowboy hat', 0], ['none', 'No hat', 0], ['party', 'Party hat', 15], ['top', 'Top hat', 25], ['pirate', 'Pirate hat', 30], ['wizard', 'Wizard hat', 30], ['crown', 'Royal crown', 40],
+    ['beanie', 'Cozy beanie', 50], ['chef', 'Chef hat', 60], ['santa', 'Santa hat', 75], ['viking', 'Viking helmet', 120], ['propeller', 'Spinning propeller cap', 150], ['flower', 'Flower crown', 200],
+    ['knight', 'Knight helmet', 400], ['unicorn', 'Unicorn horn', 800], ['halo', 'Glowing halo', 2500], ['diamondcrown', 'Diamond crown', 25000], ['galaxycrown', 'Crown of the Galaxy', 250000]],
+  glasses: [['none', 'No glasses', 0], ['sun', 'Cool sunglasses', 30], ['3d', '3D glasses', 50], ['nerd', 'Smart-dog specs', 40], ['heart', 'Heart glasses', 60], ['monocle', 'Fancy monocle', 80],
+    ['star', 'Gold star shades', 120], ['goggles', 'Steampunk goggles', 150], ['visor', 'Cyber visor', 1500], ['laser', 'LASER EYES', 5000]],
+  neck: [['bandana', 'Red sheriff bandana', 0], ['blue', 'Blue bandana', 10], ['bowtie', 'Bow tie', 40], ['scarf', 'Striped scarf', 60], ['spikes', 'Spiked collar', 120], ['chain', 'Gold chain', 300],
+    ['cape', 'Superhero cape', 500], ['royal', 'Royal cape', 3000], ['jetpack', 'Jetpack', 8000], ['wings', 'Angel wings', 20000], ['dragon', 'Dragon wings', 100000]],
+  fur: [['classic', 'Classic corgi', 0], ['golden', 'Golden', 20], ['chocolate', 'Chocolate', 20], ['snowy', 'Snowy white', 25], ['midnight', 'Midnight', 30], ['cherry', 'Cherry blossom', 40], ['mint', 'Mint', 40],
+    ['ocean', 'Ocean blue', 50], ['rainbow', 'RAINBOW', 60], ['ghost', 'Ghost', 80], ['lava', 'Lava', 150], ['emerald', 'Emerald', 250], ['galaxy', 'Galaxy', 400], ['diamond', 'Diamond', 1000],
+    ['solidgold', 'Solid gold', 5000], ['neon', 'NEON', 15000], ['cosmic', 'Cosmic legend', 500000]],
+  trail: [['none', 'No trail', 0], ['bubbles', 'Bubbles', 20], ['sparkles', 'Sparkles', 25], ['hearts', 'Hearts', 25], ['fire', 'Fire', 35], ['rainbow', 'Rainbow', 40], ['stars', 'Stars', 40],
+    ['snow', 'Snowflakes', 50], ['confetti', 'Confetti', 60], ['music', 'Music notes', 70], ['lightning', 'Lightning', 120], ['money', 'Money rain', 200], ['portal', 'Portal swirl', 300],
+    ['galaxy', 'Galaxy dust', 500], ['bones', 'Golden bones', 1000], ['supernova', 'SUPERNOVA', 50000]],
 };
-const NUG = Object.assign({ hat: 'cowboy', fur: 'classic', trail: 'none' }, store.get('nug') || {});
+const NUG = Object.assign({ hat: 'cowboy', glasses: 'none', neck: 'bandana', fur: 'classic', trail: 'none' }, store.get('nug') || {});
+for (const c in NUG_SHOP) if (!NUG_SHOP[c].some((x) => x[0] === NUG[c])) NUG[c] = NUG_SHOP[c][0][0];
+const GLOWC = (c) => Object.assign(c.slice(), { glow: 1 });   // a colour that lights up in the dark
 const NUG_OWNED = new Set(store.get('nugOwned') || []);
 const nugOwns = (cat, id) => NUG_SHOP[cat].find((x) => x[0] === id)[2] === 0 || NUG_OWNED.has(cat + ':' + id);
 function hsl(h, s, l) { const f = (n) => { const k = (n + h * 12) % 12, a = s * Math.min(l, 1 - l); return l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); }; return [f(0), f(8), f(4)]; }
+// fancy furs get twinkling glowing specks across the body (glowing the whole dog made him a flat blob)
+const FUR_SPECKS = {
+  ghost: (t, i) => [0.85, 0.95, 1], lava: (t, i) => [1, 0.35 + 0.3 * Math.sin(t * 3 + i), 0.05], galaxy: (t, i) => (i % 3 ? [1, 1, 1] : [0.7, 0.55, 1]),
+  diamond: (t, i) => [0.85, 1, 1], solidgold: (t, i) => [1, 0.97, 0.75], neon: (t, i) => hsl((t * 0.3 + 0.5 + i * 0.07) % 1, 1, 0.65),
+  cosmic: (t, i) => hsl((t * 0.2 + i * 0.13) % 1, 0.9, 0.7), emerald: (t, i) => [0.75, 1, 0.8],
+};
 function furCols(t) {
   switch (NUG.fur) {
     case 'golden': return [[0.96, 0.74, 0.28], [0.84, 0.56, 0.16], CREAM];
@@ -1668,25 +1894,162 @@ function furCols(t) {
     case 'snowy': return [[0.94, 0.94, 0.96], [0.8, 0.82, 0.87], [1, 1, 1]];
     case 'midnight': return [[0.17, 0.17, 0.24], [0.09, 0.09, 0.13], [0.76, 0.73, 0.82]];
     case 'rainbow': { const c = hsl((t * 0.15) % 1, 0.75, 0.55); return [c, c.map((v) => v * 0.78), CREAM]; }
+    case 'cherry': return [[0.98, 0.62, 0.74], [0.88, 0.45, 0.6], [1, 0.93, 0.95]];
+    case 'mint': return [[0.55, 0.9, 0.75], [0.38, 0.75, 0.6], [0.94, 1, 0.97]];
+    case 'ocean': return [[0.2, 0.52, 0.9], [0.12, 0.36, 0.72], [0.82, 0.93, 1]];
+    case 'ghost': return [[0.78, 0.84, 0.95], [0.6, 0.66, 0.8], [0.95, 0.97, 1]];
+    case 'lava': return [[0.3, 0.12, 0.1], [0.18, 0.06, 0.05], [0.95, 0.55, 0.2]];
+    case 'emerald': return [[0.15, 0.78, 0.4], [0.07, 0.55, 0.26], [0.75, 1, 0.82]];
+    case 'galaxy': return [[0.26, 0.16, 0.55], [0.12, 0.07, 0.3], [0.78, 0.7, 0.95]];
+    case 'diamond': return [[0.45, 0.88, 0.95], [0.25, 0.65, 0.78], [0.9, 1, 1]];
+    case 'solidgold': return [[0.98, 0.76, 0.26], [0.78, 0.52, 0.12], [1, 0.9, 0.55]];
+    case 'neon': { const c = hsl((t * 0.3) % 1, 0.85, 0.5); return [c, c.map((v) => v * 0.65), [0.97, 0.97, 1]]; }
+    case 'cosmic': return [[0.14, 0.12, 0.32], [0.07, 0.06, 0.18], [0.92, 0.88, 1]];
     default: return [CORGI, CORGI_D, CREAM];
   }
 }
+// ---------- OUTFIT SETS: wear every piece of a set and Nugget unlocks a power ----------
+const NUG_SETS = [
+  { id: 'dragon', name: 'Dragon Rider', col: '#ff8f26', pieces: { hat: 'viking', glasses: 'goggles', neck: 'dragon', fur: 'lava' }, power: 'FIRE BREATH + long flights', desc: 'Press R to breathe fire. Dragon flights last 8 seconds instead of 3.' },
+  { id: 'angel', name: 'Angel', col: '#fff3b0', pieces: { hat: 'halo', glasses: 'heart', neck: 'wings', fur: 'snowy' }, power: 'ANGEL FLIGHT', desc: 'Angel wings can fly for 6 seconds (Space in the air), and Nugget floats down gently.' },
+  { id: 'galaxy', name: 'Galaxy', col: '#b07cff', pieces: { hat: 'galaxycrown', glasses: 'visor', neck: 'jetpack', fur: 'cosmic' }, power: 'TELEPORT', desc: 'Press R to teleport 10 blocks forward in a flash of stars.' },
+  { id: 'royal', name: 'Royal', col: '#ffd36b', pieces: { hat: 'crown', glasses: 'monocle', neck: 'royal', fur: 'solidgold' }, power: 'DOUBLE BONES', desc: 'Every golden bone you earn counts twice!' },
+  { id: 'hero', name: 'Superhero', col: '#ff5280', pieces: { hat: 'none', glasses: 'sun', neck: 'cape', fur: 'ocean' }, power: 'SUPER SPEED', desc: 'Nugget runs 40% faster all the time, and so do you.' },
+  { id: 'unicorn', name: 'Unicorn', col: '#ff9ce8', pieces: { hat: 'unicorn', glasses: '3d', neck: 'bowtie', fur: 'cherry' }, power: 'RAINBOW BOUNCE', desc: 'Jumps go twice as high and leave a rainbow burst.' },
+];
+const SET_PIECE = { hat: 'hat', glasses: 'glasses', neck: 'neck & back', fur: 'fur' };
+function activeSet() { return NUG_SETS.find((S) => Object.entries(S.pieces).every(([c, v]) => NUG[c] === v)) || null; }
+const hasSet = (id) => { const S = activeSet(); return !!S && S.id === id; };
+let lastSetId = null;
+function setCheck() {   // announce when a set is completed
+  const S = activeSet(), id = S ? S.id : null;
+  if (id !== lastSetId) { lastSetId = id; if (S) { banner(`${S.name.toUpperCase()} SET COMPLETE!`, `Power unlocked: ${S.power}`, S.col, 3200); fireworks(5); sfx('win'); say(`<b style="color:${S.col}">${S.name} set:</b> ${S.desc}`, 10000); } }
+}
+let powerCool = 0, breathT = 0, roarT = 0;
+// dragon fire breath: a roaring cone of fire out of Nugget's mouth while R is held
+function breathStep(dt) {
+  if (scene !== 'lobby' || !hasSet('dragon') || !E.is_riding()) { breathT = 0; return; }   // only Nugget breathes fire, so you have to be riding him
+  if (keys.KeyR && !anyDialog()) breathT = Math.max(breathT, 0.08);
+  if (breathT <= 0) return;
+  breathT -= dt; roarT -= dt; if (roarT <= 0) { roarT = 0.32; sfx('boom'); }
+  const riding = E.is_riding(), fwdYaw = riding ? yaw : yaw, fx = Math.sin(fwdYaw), fz = Math.cos(fwdYaw), up = Math.sin(pitch) * 0.6;
+  const ox = (riding ? E.dog_x() : E.player_x()) + fx * (riding ? 0.85 : 0.6), oy = (riding ? E.dog_y() + 0.55 : E.player_y() + 1.35), oz = (riding ? E.dog_z() : E.player_z()) + fz * (riding ? 0.85 : 0.6);
+  for (let k = 0; k < 14; k++) {
+    const sp = 11 + Math.random() * 6, a = (Math.random() - 0.5) * 0.28, b = (Math.random() - 0.5) * 0.22;
+    const dx = fx * Math.cos(a) - fz * Math.sin(a), dz = fz * Math.cos(a) + fx * Math.sin(a);
+    spawnFire(ox + (Math.random() - 0.5) * 0.15, oy + (Math.random() - 0.5) * 0.12, oz + (Math.random() - 0.5) * 0.15, dx * sp, (up + b) * sp, dz * sp, 0.06 + Math.random() * 0.04, 0.85);
+  }
+}
+function setPower() {   // R in the lobby
+  if (scene !== 'lobby' || powerCool > 0) return;
+  const S = activeSet();
+  if (!S) return say('Wear a full <b>outfit set</b> from the Nugget Shop (K) to unlock a power for R!', 4000);
+  const riding = E.is_riding(), yawNow = yaw, fx = Math.sin(yawNow), fz = Math.cos(yawNow);
+  const ox = riding ? E.dog_x() : E.player_x(), oy = (riding ? E.dog_y() : E.player_y()) + 0.6, oz = riding ? E.dog_z() : E.player_z();
+  if (S.id === 'dragon') { if (!riding) return say('Only <b>Nugget</b> breathes fire! Press <b>F</b> to ride him, then hold <b>R</b>.', 3500); breathT = 0.35; sfx('boom'); }   // hold R to keep breathing (see breathStep)
+  else if (S.id === 'galaxy') {
+    let dest = null;
+    for (let d = 10; d >= 3 && !dest; d -= 1) {
+      const x = ox + fx * d, z = oz + fz * d, g = E.ground_at(x, oy + 4, z);
+      if (g > 0 && !E.solid_at(x, g + 0.3, z) && !E.solid_at(x, g + 1.3, z)) dest = [x, g, z];
+    }
+    if (!dest) return warn('No room to teleport there!');
+    powerCool = 1.2; sfx('wave');
+    const burst = (x, y, z) => { for (let k = 0; k < 30 && FX.length < 240; k++) FX.push({ x, y: y + 0.8, z, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, vz: (Math.random() - 0.5) * 6, t: 0, life: 0.6, col: hsl(0.7 + Math.random() * 0.2, 0.9, 0.7), s: 0.06 }); };
+    burst(ox, oy - 0.6, oz); E.set_player(dest[0], dest[1], dest[2]); if (!riding && Math.hypot(E.dog_x() - ox, E.dog_z() - oz) < 3) dogTeleport(dest[0] + 1, dest[1], dest[2]); burst(dest[0], dest[1], dest[2]);
+  } else say(`<b style="color:${S.col}">${S.name}</b> power is always on: ${S.desc}`, 4000);
+}
+// DRAGON WINGS: while riding, press Space again in the air and Nugget flies for 3 seconds (refills when he lands)
+const FLY_TIME = 3;
+const flyTime = () => hasSet('dragon') ? 8 : hasSet('angel') ? 6 : FLY_TIME;
+const canFly = () => NUG.neck === 'dragon' || hasSet('angel');
+let flyFuel = FLY_TIME, flying = false, lastJumpKey = false, flyTipSaid = false, gliding = false;
+function dragonFly(dt, jump, riding) {
+  powerCool = Math.max(0, powerCool - dt); setCheck(); breathStep(dt);
+  // unicorn: big rainbow bounce on every jump
+  if (hasSet('unicorn') && jump && !lastJumpKey && E.player_on_ground()) { E.player_push(0, riding ? 16 : 12, 0); for (let k = 0; k < 24 && FX.length < 240; k++) FX.push({ x: E.player_x(), y: E.player_y() + 0.2, z: E.player_z(), vx: (Math.random() - 0.5) * 5, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 5, t: 0, life: 0.7, col: hsl(Math.random(), 0.9, 0.6), s: 0.06 }); }
+  // angel: float down gently while holding Space
+  if (hasSet('angel') && jump && !E.player_on_ground() && !flying) E.player_push(0, -2.5, 0);
+  if (!riding || !canFly()) { flying = false; lastJumpKey = !!jump; return; }
+  if (!flyTipSaid) { flyTipSaid = true; say(`<b style="color:#ff8f26">WINGS:</b> jump, then press <b>Space</b> again in the air and hold it to <b>FLY</b> for ${flyTime()} seconds!`, 9000); }
+  const og = E.player_on_ground(), press = jump && !lastJumpKey; lastJumpKey = !!jump;
+  if (og) { flyFuel = Math.min(flyTime(), flyFuel + dt * 3); flying = false; gliding = false; }
+  if (!og && press && flyFuel > 0.05) { flying = true; gliding = true; sfx('wave'); }
+  if (flying && jump && flyFuel > 0) {
+    flyFuel = Math.max(0, flyFuel - dt);
+    E.player_push(0, 7.5, 0);
+    for (let k = 0; k < 5; k++) spawnFire(E.player_x() + (Math.random() - 0.5) * 0.7, E.player_y() + 0.35, E.player_z() + (Math.random() - 0.5) * 0.7, (Math.random() - 0.5) * 2, -5 - Math.random() * 3, (Math.random() - 0.5) * 2, 0.07, 0.55);
+    if (flyFuel <= 0) { flying = false; say('Nugget\'s wings are tired! Land to rest them.', 2500); }
+  } else if (!jump) flying = false;
+  // after flying, Nugget glides down slowly on spread wings until his paws touch the ground
+  if (gliding && !flying && !og) {
+    E.player_push(0, -2.4, 0);
+    if (Math.random() < 0.5 && FX.length < 230) FX.push({ x: E.player_x() + (Math.random() - 0.5) * 1.4, y: E.player_y() + 0.5, z: E.player_z() + (Math.random() - 0.5) * 1.4, vx: 0, vy: 1, vz: 0, t: 0, life: 0.5, col: [1, 1, 1], s: 0.03 });
+  }
+}
+function flyMeter() { const n = Math.max(0, Math.min(10, Math.round(flyFuel / flyTime() * 10))); return '█'.repeat(n) + '░'.repeat(10 - n); }
+function renameDog(name) {
+  name = String(name || '').replace(/[<>&"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
+  if (!name) { $('voteN').textContent = 'Type a name first!'; return false; }
+  DOG_NAME = name; store.set('dogName', name); applyDogName(); sfx('bark');
+  say(`Your dog is now called <b>${name}</b>! Woof!`, 5000);
+  return true;
+}
+// put the name into the parts of the page that were written before the game started
+const DOG_TEXT_HOMES = [];
+function applyDogName() {
+  dogLabel.textContent = DOG_NAME;
+  trackLabel.innerHTML = dn('NUGGET RACEWAY<small>ride through to start a lap</small>');
+  if (!DOG_TEXT_HOMES.length) for (const root of [$('start'), $('ridebar')]) { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) if (/Nugget|NUGGET/.test(n.nodeValue)) DOG_TEXT_HOMES.push([n, n.nodeValue]); }
+  for (const [n, orig] of DOG_TEXT_HOMES) n.nodeValue = dn(orig);
+  if (scene === 'lobby') { $('board').innerHTML = dn(LOBBY_BOARD); lastBoard = ''; }
+}
+function closeShop() { $('vote').hidden = true; lockMouse(); }
+// Esc or E gets you out of the Nugget Shop
+addEventListener('keydown', (e) => { if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName) && e.code !== 'Escape') return; if ((e.code === 'Escape' || e.code === 'KeyE') && !$('vote').hidden && scene === 'lobby' && $('voteT').textContent.endsWith(' SHOP')) { e.preventDefault(); e.stopImmediatePropagation(); closeShop(); } }, true);
 function openShop() {
   if (scene !== 'lobby') return;
-  const cats = [['hat', 'Hats'], ['fur', 'Fur'], ['trail', 'Trails (while Nugget runs)']];
-  $('voteT').textContent = 'NUGGET SHOP';
-  $('voteN').innerHTML = `You have <b style="color:#ffd36b">${WALLET.bones} golden bones</b>. Earn more by playing every game, racing laps and finding the 10 hidden golden bones in the lobby!`;
+  const cats = [['hat', 'Hats'], ['glasses', 'Glasses'], ['neck', 'Neck & back (capes, wings, jetpacks!)'], ['fur', 'Fur'], ['trail', 'Trails (while Nugget runs)']];
+  $('voteT').textContent = dn('NUGGET SHOP');
+  $('voteN').innerHTML = dn(`You have <b style="color:#ffd36b">${WALLET.bones.toLocaleString()} golden bones</b>. Earn more by playing every game, racing laps and finding the 10 hidden golden bones in the lobby!`);
   const list = $('voteList'); list.innerHTML = '';
+  const nm = document.createElement('div'); nm.style.cssText = 'display:flex;gap:8px;align-items:center;margin:4px 0 6px';
+  nm.innerHTML = `<label for="dogNameIn" style="font-size:20px;color:var(--ink-dim);white-space:nowrap">Dog's name</label><input id="dogNameIn" maxlength="16" autocomplete="off" spellcheck="false" style="flex:1;min-width:0;font:22px var(--body);padding:5px 8px;background:#14121c;color:var(--ink);border:0;box-shadow:inset 2px 2px 0 var(--edge-lo),inset -2px -2px 0 var(--edge-hi)"><button class="btn" id="dogNameGo" style="width:auto;padding:8px 12px">RENAME</button>`;
+  list.appendChild(nm);
+  const inp = nm.querySelector('input'); inp.value = DOG_NAME;
+  inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') nm.querySelector('button').click(); });
+  nm.querySelector('button').addEventListener('click', () => { if (renameDog(inp.value)) { const sc = list.parentElement.scrollTop; openShop(); list.parentElement.scrollTop = sc; } });
+  const sh = document.createElement('div'); sh.textContent = 'Outfit sets (wear all 4 pieces to unlock a power)'; sh.style.cssText = 'font-weight:bold;margin:10px 0 4px;color:#ffd36b'; list.appendChild(sh);
+  const cur = activeSet();
+  for (const S of NUG_SETS) {
+    const parts = Object.entries(S.pieces), name = (c, v) => NUG_SHOP[c].find((x) => x[0] === v)[1];
+    const owned = parts.filter(([c, v]) => nugOwns(c, v)).length, cost = parts.reduce((a, [c, v]) => a + (nugOwns(c, v) ? 0 : NUG_SHOP[c].find((x) => x[0] === v)[2]), 0);
+    const b = document.createElement('button'); b.className = 'game shopitem';
+    b.style.boxShadow = `inset 4px 0 0 ${S.col}, inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo)`;
+    b.innerHTML = `<span><b style="font-weight:400;color:${S.col}">${S.name} set</b> · ${S.power}<small>${parts.map(([c, v]) => (nugOwns(c, v) ? '✓ ' : '') + name(c, v)).join(' · ')}<br>${S.desc}</small></span><em>${cur === S ? 'POWER ON' : owned === 4 ? 'wear set' : 'buy all ' + cost.toLocaleString()}</em>`;
+    if (owned < 4 && WALLET.bones < cost) b.style.opacity = '0.55';
+    b.addEventListener('click', () => {
+      if (owned < 4) {
+        if (WALLET.bones < cost) { $('voteN').innerHTML = `You need <b>${(cost - WALLET.bones).toLocaleString()} more golden bones</b> for the rest of the ${S.name} set.`; return; }
+        WALLET.bones -= cost; store.set('bones', WALLET.bones); for (const [c, v] of parts) NUG_OWNED.add(c + ':' + v); store.set('nugOwned', [...NUG_OWNED]); sfx('coin');
+      }
+      Object.assign(NUG, S.pieces); store.set('nug', NUG); sfx('click');
+      const sc = list.parentElement.scrollTop; openShop(); list.parentElement.scrollTop = sc;
+    });
+    list.appendChild(b);
+  }
   for (const [cat, label] of cats) {
     const h = document.createElement('div'); h.textContent = label; h.style.cssText = 'font-weight:bold;margin:10px 0 4px;color:#ffd36b'; list.appendChild(h);
     for (const [id, name, price] of NUG_SHOP[cat]) {
       const owned = nugOwns(cat, id), on = NUG[cat] === id;
       const b = document.createElement('button'); b.className = 'game shopitem';
-      b.innerHTML = `<span>${name}</span><em>${on ? 'WEARING' : owned ? 'wear it' : price + ' bones'}</em>`;
+      const tier = price >= 100000 ? ['MYTHIC', '#ff5cf0'] : price >= 10000 ? ['LEGENDARY', '#ffb020'] : price >= 1000 ? ['EPIC', '#b07cff'] : price >= 200 ? ['RARE', '#5cc8ff'] : null;
+      b.innerHTML = `<span>${name}${tier ? ` <small style="display:inline;font:700 11px var(--display);color:${tier[1]};letter-spacing:.05em">${tier[0]}</small>` : ''}</span><em>${on ? 'WEARING' : owned ? 'wear it' : price.toLocaleString() + ' bones'}</em>`;
+      if (tier && !owned) b.style.boxShadow = `inset 3px 0 0 ${tier[1]}, inset 2px 2px 0 var(--edge-hi), inset -2px -2px 0 var(--edge-lo)`;
       if (!owned && WALLET.bones < price) b.style.opacity = '0.5';
       b.addEventListener('click', () => {
         if (!owned) {
-          if (WALLET.bones < price) { $('voteN').innerHTML = `You need <b>${price - WALLET.bones} more golden bones</b> for the ${name}. Go play!`; return; }
+          if (WALLET.bones < price) { $('voteN').innerHTML = `You need <b>${(price - WALLET.bones).toLocaleString()} more golden bones</b> for the ${name}. Go play!`; return; }
           WALLET.bones -= price; store.set('bones', WALLET.bones); NUG_OWNED.add(cat + ':' + id); store.set('nugOwned', [...NUG_OWNED]); sfx('coin');
         }
         NUG[cat] = id; store.set('nug', NUG); sfx('click');
@@ -1695,8 +2058,8 @@ function openShop() {
       list.appendChild(b);
     }
   }
-  const done = document.createElement('div'); done.className = 'row2'; done.innerHTML = '<button class="btn" id="shopDone">DONE</button>'; list.appendChild(done);
-  $('shopDone').onclick = () => { $('vote').hidden = true; lockMouse(); };
+  const done = document.createElement('div'); done.className = 'row2'; done.style.cssText = 'position:sticky;bottom:-22px;grid-template-columns:1fr;padding:10px 0 4px;background:var(--panel-solid)'; done.innerHTML = '<button class="btn" id="shopDone">DONE (Esc)</button>'; list.appendChild(done);
+  $('shopDone').onclick = closeShop;
   $('vote').hidden = false; releaseMouse();
 }
 // trails behind Nugget
@@ -1705,10 +2068,22 @@ function trailStep(st, dt) {
   if (!st || NUG.trail === 'none' || !st.moving) return;
   trailT -= dt; if (trailT > 0) return; trailT = 0.035;
   const bx = st.x - Math.sin(st.yaw) * 0.55, bz = st.z - Math.cos(st.yaw) * 0.55, r = () => (Math.random() - 0.5);
-  const kind = NUG.trail;
-  const col = kind === 'sparkles' ? (Math.random() < 0.5 ? [1, 0.95, 0.5] : [1, 1, 1]) : kind === 'hearts' ? [1, 0.35 + Math.random() * 0.2, 0.55] : kind === 'bubbles' ? [0.7, 0.9, 1] : kind === 'fire' ? [1, 0.3 + Math.random() * 0.5, 0.1] : hsl((T * 0.6) % 1, 0.9, 0.6);
-  const up = kind === 'bubbles' || kind === 'fire' || kind === 'hearts';
-  if (FX.length < 230) FX.push({ x: bx + r() * 0.3, y: st.y + 0.35 + Math.random() * 0.3, z: bz + r() * 0.3, vx: r() * 0.6, vy: up ? 5 + Math.random() * 2 : 2 + Math.random() * 2, vz: r() * 0.6, t: 0, life: kind === 'rainbow' ? 0.9 : 0.6, col, s: kind === 'bubbles' ? 0.07 : 0.05 });
+  const kind = NUG.trail, R = Math.random;
+  const TR = {
+    sparkles: [() => (R() < 0.5 ? [1, 0.95, 0.5] : [1, 1, 1]), 2, 0.6, 0.05], hearts: [() => [1, 0.35 + R() * 0.2, 0.55], 5, 0.6, 0.05], bubbles: [() => [0.7, 0.9, 1], 5, 0.6, 0.07],
+    fire: [() => [1, 0.3 + R() * 0.5, 0.1], 5, 0.6, 0.05], rainbow: [() => hsl((T * 0.6) % 1, 0.9, 0.6), 2, 0.9, 0.05], stars: [() => (R() < 0.7 ? [1, 0.9, 0.3] : [1, 1, 1]), 3.5, 0.8, 0.06],
+    snow: [() => [0.95, 0.97, 1], -0.5, 1.4, 0.05], confetti: [() => hsl(R(), 0.9, 0.6), 4, 1.1, 0.045], music: [() => hsl([0.55, 0.8, 0.95][Math.floor(R() * 3)], 0.8, 0.55), 3, 1.2, 0.06],
+    lightning: [() => (R() < 0.6 ? [1, 1, 0.55] : [0.6, 0.85, 1]), 1, 0.25, 0.06], money: [() => [0.25 + R() * 0.15, 0.8, 0.3], 3, 1.3, 0.06], portal: [() => [0.55 + R() * 0.2, 0.2, 0.95], 2.5, 0.9, 0.06],
+    galaxy: [() => hsl(0.65 + R() * 0.2, 0.85, 0.5 + R() * 0.3), 1.5, 1.5, 0.045], bones: [() => [1, 0.84, 0.35], 4.5, 1, 0.07],
+    supernova: [() => hsl((T * 1.5 + R() * 0.3) % 1, 1, 0.65), 7, 1.3, 0.08],
+  }[kind];
+  if (!TR) return;
+  if (kind === 'fire') { for (let i = 0; i < 3; i++) spawnFire(bx + r() * 0.35, st.y + 0.3 + Math.random() * 0.2, bz + r() * 0.35, r() * 0.8, 1 + Math.random(), r() * 0.8, 0.06, 0.6); return; }
+  const n = kind === 'supernova' ? 3 : kind === 'confetti' ? 2 : 1, spread = kind === 'supernova' ? 4 : kind === 'portal' ? 1.4 : 0.6;
+  for (let i = 0; i < n && FX.length < 230; i++) {
+    const sw = kind === 'portal' ? T * 9 + i * 2 : 0;
+    FX.push({ x: bx + r() * 0.3 + (sw ? Math.cos(sw) * 0.3 : 0), y: st.y + 0.35 + R() * 0.3, z: bz + r() * 0.3 + (sw ? Math.sin(sw) * 0.3 : 0), vx: r() * spread, vy: TR[1] + R() * 2 * Math.sign(TR[1] || 1), vz: r() * spread, t: 0, life: TR[2], col: TR[0](), s: TR[3] });
+  }
 }
 // tricks: press T and Nugget shows off
 const TRICKS = ['flip', 'spin', 'roll', 'hop'];
@@ -1816,8 +2191,9 @@ const LOBBY_SLOTS = [
 
 // ---------- dialogs ----------
 const LOBBY_BOARD = $('board').innerHTML;
+if (DOG_NAME !== 'Nugget') queueMicrotask(applyDogName);   // a renamed dog shows his name from the start
 let lastBoard = '';
-function setBoard(html) { if (html !== lastBoard) { $('board').innerHTML = html; lastBoard = html; } }
+function setBoard(html) { if (html !== lastBoard) { $('board').innerHTML = dn(html); lastBoard = html; } }
 const row = (a, b, cls = '') => `<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`;
 const anyDialog = () => !$('menu').hidden || !$('result').hidden || !$('craft').hidden || !$('vote').hidden || !$('shop').hidden || !$('start').hidden;
 $('shopGo').addEventListener('click', () => { if (scene === 'wars' && G && G.state === 'shop') Wars.closeShop(); });
@@ -1970,7 +2346,7 @@ const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) 
 let craftMode = 'inv';
 function openPanel(mode) { if (scene !== 'survival' || !G || G.over) return; craftMode = mode; renderCraft(); $('craft').hidden = false; releaseMouse(); }
 const openInv = () => openPanel('inv'), openTable = () => openPanel('table'), openFurnace = () => openPanel('furnace');
-function closeCraft() { $('craft').hidden = true; }
+function closeCraft() { $('craft').hidden = true; const t = $('mctip'); if (t) t.hidden = true; }
 $('craftClose').addEventListener('click', () => { closeCraft(); lockMouse(); });
 function recipeButton(r, el) {
   const b = document.createElement('button'); b.className = 'game';
@@ -1996,60 +2372,169 @@ function recipeButton(r, el) {
 }
 const heading = (el, text) => { const h = document.createElement('h3'); h.className = 'sec'; h.textContent = text; el.appendChild(h); };
 const note = (el, text) => { const p = document.createElement('p'); p.className = 'fnote'; p.innerHTML = text; el.appendChild(p); };
-function renderCraft() {
-  const el = $('recipes'); el.innerHTML = '';
-  $('craftClose').textContent = craftMode === 'inv' ? 'CLOSE (E)' : 'DONE';
-  if (craftMode === 'furnace') {
-    $('craftT').textContent = 'FURNACE';
-    note(el, `Each smelt or cook burns 1 coal. You have ${G.items.coal} coal.`);
-    SMELT.filter((r) => !r.food || G.items[r.from] > 0).forEach((r) => {
-      const n = Math.min(G.items[r.from], G.items.coal);
-      const b = document.createElement('button'); b.className = 'game';
-      b.disabled = n < 1;
-      b.innerHTML = `<i style="background:${r.col}"></i><span>${r.food ? 'Cook' : 'Smelt'} ${r.name}</span><em>${G.items[r.from]} ${ITEM[r.from].toLowerCase()} · 1 coal each</em>`;
-      b.addEventListener('click', () => {
-        const k = Math.min(G.items[r.from], G.items.coal); if (k < 1) return;
-        G.items[r.from] -= k; G.items.coal -= k; G.items[r.to] += k;
-        if (r.to === 'iron') G.smelted += k;
-        say(`The furnace glows… <b>+${k} ${r.name}${k > 1 ? 's' : ''}</b>`, 4000);
-        renderCraft();
-      });
-      el.appendChild(b);
-    });
-    return;
+// ---------- block-game style inventory, crafting table and furnace ----------
+let craftSel = { inv: 0, table: 0, furnace: 0 };
+const pix = (rows, pal, scale = 4) => { const c = document.createElement('canvas'); c.width = rows[0].length * scale; c.height = rows.length * scale; const x = c.getContext('2d');
+  rows.forEach((r, y) => [...r].forEach((ch, i) => { if (ch !== '.' && pal[ch]) { x.fillStyle = pal[ch]; x.fillRect(i * scale, y * scale, scale, scale); } })); return c; };
+const ARMOR_COL = ['#777', '#8a5530', '#d6d6dc', '#4fe0e0'], ARMOR_DK = ['#555', '#5e3a1e', '#9a9aa4', '#25a7a7'];
+const ARMOR_PIX = {
+  helmet: ['................', '................', '...AAAAAAAAAA...', '..ABBBBBBBBBBA..', '..ABAAAAAAAABA..', '..AB........BA..', '..AB........BA..', '..AA........AA..', '................'],
+  chest: ['................', '..AAA......AAA..', '.ABBAA....AABBA.', '.ABBBBAAAABBBBA.', '.AAABBBBBBBBAAA.', '...ABBBBBBBBA...', '...ABBBBBBBBA...', '...ABBBBBBBBA...', '...ABBBBBBBBA...', '...AAAAAAAAAA...', '................'],
+  legs: ['................', '...AAAAAAAAAA...', '...ABBBBBBBBA...', '...ABBBAABBBA...', '...ABBA..ABBA...', '...ABBA..ABBA...', '...ABBA..ABBA...', '...ABBA..ABBA...', '...AAAA..AAAA...', '................'],
+  boots: ['................', '................', '..AAA......AAA..', '..ABA......ABA..', '..ABA......ABA..', '.AABA......ABAA.', '.ABBA......ABBA.', '.AAAA......AAAA.', '................'],
+};
+const armorArt = {};
+function armorImg(kind, tier) { const k = kind + tier; if (!armorArt[k]) { const rows = ARMOR_PIX[kind].slice(), pad = 16 - rows.length, top = Math.floor(pad / 2); for (let i = 0; i < top; i++) rows.unshift('................'); while (rows.length < 16) rows.push('................'); armorArt[k] = pix(rows, { A: ARMOR_DK[tier], B: ARMOR_COL[tier] }).toDataURL(); } return `<img class="art" alt="" src="${armorArt[k]}">`; }
+let playerPic = null, playerPicKey = '';
+const toHex = (c) => '#' + c.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
+function playerCanvas() {   // you, with Nugget the corgi sitting at your feet (in his own fur and bandana colours)
+  const [O, D, C] = furCols(0).map(toHex), neck = NUG.neck, key = O + D + C + neck;
+  if (playerPic && key === playerPicKey) return playerPic;
+  playerPicKey = key;
+  const kid = [
+    '......RRRRRR..', '.....RRRRRRRR.', '....RRRRRRRRRR', '.....HSSSSSSH.', '.....SSESSESS.', '.....SSSSSSSS.', '.....SSSMMSSS.',
+    '....GGGGGGGGGG', '...GGGGGWGGGGG', '...GGGGGWGGGGG', '...SGGGGGGGGGS', '...SGGGGGGGGGS', '....JJJJJJJJJJ', '....JJJJJ.JJJJ',
+    '....JJJJ..JJJJ', '....JJJJ..JJJJ', '....JJJJ..JJJJ', '....JJJJ..JJJJ', '...KKKKK..KKKK', '...KKKKK..KKKK'];
+  const dog = [
+    '.D..........D.', '.DO........OD.', '.OPO......OPO.', '.OPPO....OPPO.', '.OOOOOOOOOOOO.', '.OOOOOCCOOOOO.',
+    '.OEWOOCCOOEWO.', '.OEEOCCCCOEEO.', '..OCCCNNCCCO..', '..OCCCTTCCCO..', '...BBBBBBBB...', '..OBBBYBBBBO..',
+    '..OOCBBBBCOO..', '..OOCCBBCCOO..', '..OOCCCCCCOO..', '..CCC.CC.CCC..'];
+  const rows = kid.map((r, y) => { const dy = y - 4; return r + (dy >= 0 && dy < dog.length ? dog[dy] : '..............'); });
+  const band = neck === 'blue' ? '#2659d9' : '#d12a2e';
+  playerPic = pix(rows, { R: '#c9302c', H: '#5a3a1e', S: '#f0c49a', E: '#2a2a40', M: '#b06050', G: '#3a8f5a', W: '#ffffff', J: '#3c5aa8', K: '#555',
+    O, D, C, P: '#f7b7b0', N: '#1a1214', T: '#f06a86', B: band, Y: '#ffd34d' }, 4);
+  return playerPic;
+}
+function mcTip() {   // dark purple tooltip that follows the mouse
+  let t = $('mctip'); if (t) return t;
+  t = document.createElement('div'); t.id = 'mctip'; t.hidden = true; document.body.appendChild(t);
+  const box = $('craft');
+  box.addEventListener('mousemove', (e) => { const el = e.target.closest('[data-tip]'); if (!el) { t.hidden = true; return; } t.innerHTML = el.dataset.tip; t.hidden = false;
+    const w = t.offsetWidth, h = t.offsetHeight; t.style.left = Math.min(innerWidth - w - 6, e.clientX + 16) + 'px'; t.style.top = Math.max(6, e.clientY - h - 8) + 'px'; });
+  box.addEventListener('mouseleave', () => { t.hidden = true; });
+  return t;
+}
+function mcSlot(art, count, tip, onClick, cls = '') {
+  const b = document.createElement('button'); b.className = 'mcs ' + cls; b.innerHTML = (art || '') + (count > 1 ? `<span class="n">${count}</span>` : '');
+  if (tip) { b.dataset.tip = tip; b.setAttribute('aria-label', tip.replace(/<[^>]+>/g, '')); } else b.setAttribute('aria-label', 'Empty slot');
+  if (onClick) b.addEventListener('click', onClick);
+  return b;
+}
+const kName = (k) => isNaN(k) ? ITEM[k] : sName(+k);
+const kArt = (k) => k === 'bucket' ? artHTML(G.bucket === 2 ? 'bucketw' : 'bucket') : k === 'fns' ? artHTML('fns') : artHTML(isNaN(k) ? k : +k);
+const kCount = (k) => k === 'bucket' || k === 'fns' ? 1 : isNaN(k) ? G.items[k] : G.inv[k];
+function resultArt(r) {
+  if (r.tool) return artHTML('pick', r.tool); if (r.sword) return artHTML('sword', r.sword); if (r.armor) return armorImg('chest', r.armor);
+  if (r.bucket) return artHTML('bucket'); if (r.fns) return artHTML('fns'); if (r.block) return artHTML(r.block);
+  return artHTML(r.name === 'Bread' ? 'bread' : r.name === 'Gold ingot' ? 'gold' : 'coal');
+}
+const recipeCount = (r) => r.name === '4 Planks' ? 4 : 1;
+function doCraft(r) {
+  if (!canCraft(r)) return false;
+  for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
+  if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); }
+  else if (r.sword) { G.sword = r.sword; say(`Crafted a <b>${SWORDS[r.sword]}</b>! It hits monsters much harder.`, 6000); }
+  else if (r.armor) { G.armor = r.armor; say(`You put on <b>${ARMORS[r.armor]} armor</b>! Monsters hurt you less.`, 6000); }
+  else r.make();
+  if (r.block === TABLE) say('Crafting table made! Put it in your hotbar, place it (right-click), then right-click it to craft tools.', 8000);
+  if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
+  if (r.bucket) say(`Bucket crafted! It is in hotbar slot <b>${G.hot.indexOf('bucket') + 1}</b>. Right-click water with it to fill it.`, 8000);
+  if (r.fns) say(`Flint and steel! It is in hotbar slot <b>${G.hot.indexOf('fns') + 1}</b>. Right-click an obsidian frame to light a <b>Nether portal</b>.`, 9000);
+  sfx('click'); Survival.hot(); return true;
+}
+function recipeTip(r) { const ok = canCraft(r); return `${r.name}\n<span class="${ok || recipeDone(r) ? 'need' : 'bad'}">${recipeDone(r) ? 'Already crafted' : 'Needs ' + needText(r)}</span>`; }
+// the 2x2 / 3x3 crafting grid, filled with what the picked recipe needs
+function craftGrid(r, n) {
+  const g = document.createElement('div'); g.className = 'mcgrid'; g.style.gridTemplateColumns = `repeat(${n}, var(--s))`;
+  const units = []; if (r) for (const [k, c] of Object.entries(r.need)) for (let i = 0; i < c; i++) units.push(k);
+  let cells;
+  if (units.length <= n * n) cells = units.map((k) => [k, 1]);
+  else cells = Object.entries(r.need).map(([k, c]) => [k, c]);
+  for (let i = 0; i < n * n; i++) {
+    const c = cells[i];
+    g.appendChild(c ? mcSlot(kArt(c[0]), c[1], `${kName(c[0])}\n<span class="need">You have ${have(c[0]) || 0}</span>`, null, have(c[0]) >= (r.need[c[0]] || 0) ? '' : 'ghost') : mcSlot('', 0, '', null));
   }
-  if (craftMode === 'table') {
-    $('craftT').textContent = 'CRAFTING TABLE';
-    RECIPES.forEach((r) => recipeButton(r, el));
-    return;
+  return g;
+}
+function invSection(el) {
+  const lab = document.createElement('div'); lab.className = 'mcl'; lab.textContent = 'Inventory'; el.appendChild(lab);
+  const keys = [];
+  Object.keys(G.inv).map(Number).filter((id) => G.inv[id] > 0).forEach((id) => keys.push(id));
+  if (G.bucket) keys.push('bucket'); if (G.fns) keys.push('fns');
+  Object.keys(ITEM).filter((k) => G.items[k] > 0).forEach((k) => keys.push(k));
+  const grid = document.createElement('div'); grid.className = 'mcgrid'; el.appendChild(grid);
+  const rows = Math.max(3, Math.ceil(keys.length / 9));
+  for (let i = 0; i < rows * 9; i++) {
+    const k = keys[i];
+    if (k == null) { grid.appendChild(mcSlot('', 0, '', null)); continue; }
+    const usable = !isNaN(k) || k === 'bucket' || k === 'fns' || FOOD[k] || HOLD[k];
+    grid.appendChild(mcSlot(kArt(k), kCount(k), `${kName(k) || (k === 'bucket' ? 'Bucket' : 'Flint and steel')}${usable ? `\n<span class="need">Click: put in hotbar slot ${selected + 1}</span>` : ''}`,
+      usable ? () => { Survival.toSlot(isNaN(k) ? k : +k); sfx('click'); renderCraft(); } : null, G.hot.includes(isNaN(k) ? k : +k) ? 'sel' : ''));
   }
-  // inventory: pocket crafting, everything you carry, and what you are holding
-  $('craftT').textContent = 'INVENTORY';
-  heading(el, 'Crafting (2×2)');
-  RECIPES.filter((r) => !r.table).forEach((r) => recipeButton(r, el));
-  note(el, G.tables.size ? 'Tools, furnaces and buckets: right-click your <b>crafting table</b>.' : 'Tools, furnaces and buckets need a <b>crafting table</b>. Craft one here, then place it.');
-  heading(el, `Items · click a block to put it in hotbar slot ${selected + 1}`);
-  const grid = document.createElement('div'); grid.className = 'invgrid'; el.appendChild(grid);
-  const tile = (label, art, count, onClick, on) => {
-    const t = document.createElement(onClick ? 'button' : 'div'); t.className = 'tile' + (on ? ' on' : '') + (onClick ? ' click' : '');
-    t.title = label; t.setAttribute('aria-label', `${label}: ${count}`);
-    t.innerHTML = `<span class="sw art-sw">${art}</span><span class="n">${count}</span><span class="lb">${label}</span>`;
-    if (onClick) t.addEventListener('click', onClick);
-    grid.appendChild(t);
-  };
-  let any = false;
-  Object.keys(G.inv).map(Number).filter((id) => G.inv[id] > 0).forEach((id) => {
-    any = true; tile(sName(id), artHTML(id), G.inv[id], () => { Survival.toSlot(id); renderCraft(); }, G.hot.includes(id));
+  const gap = document.createElement('div'); gap.className = 'mcgap'; el.appendChild(gap);
+  const hot = document.createElement('div'); hot.className = 'mcgrid'; el.appendChild(hot);
+  G.hot.forEach((k, i) => {
+    const tip = k == null ? `Hotbar slot ${i + 1} (empty)` : `${k === 'bucket' ? (G.bucket === 2 ? 'Water bucket' : 'Bucket') : k === 'fns' ? 'Flint and steel' : kName(k)}\n<span class="need">Hotbar slot ${i + 1}</span>`;
+    hot.appendChild(mcSlot(k == null ? '' : kArt(k), k == null ? 0 : kCount(k), tip, () => { pick(i, true); renderCraft(); }, i === selected ? 'sel' : ''));
   });
-  if (G.bucket) { any = true; tile(G.bucket === 2 ? 'Water bucket' : 'Bucket', artHTML(G.bucket === 2 ? 'bucketw' : 'bucket'), 1, () => { Survival.toSlot('bucket'); renderCraft(); }, G.hot.includes('bucket')); }
-  if (G.fns) { any = true; tile('Flint and steel', artHTML('fns'), 1, () => { Survival.toSlot('fns'); renderCraft(); }, G.hot.includes('fns')); }
-  Object.keys(ITEM).filter((k) => G.items[k] > 0).forEach((k) => { any = true; tile(ITEM[k], artHTML(k), G.items[k], FOOD[k] || HOLD[k] ? () => { Survival.toSlot(k); renderCraft(); } : null, G.hot.includes(k)); });
-  if (!any) note(el, 'Nothing yet. Hold click on a tree to collect logs.');
-  note(el, `Pickaxe: <b>${TOOLS[G.tool]}</b> · Sword: <b>${SWORDS[G.sword]}</b> · Armor: <b>${ARMORS[G.armor]}</b> · Hearts: <b>${G.hp / 2} of 10</b>`);
-  note(el, 'Click food, seeds, wheat or bones to hold them, then right-click to use them.');
-  const m = document.createElement('button'); m.className = 'btn alt'; m.textContent = 'PAUSE MENU';
-  m.addEventListener('click', () => { closeCraft(); openMenu(); });
-  el.appendChild(m);
+}
+function recipeBook(el, list, mode) {
+  const box = document.createElement('div'); box.className = 'mcpanel2'; el.appendChild(box);
+  const lab = document.createElement('div'); lab.className = 'mcl'; lab.textContent = 'Recipe book · pick one, then click the result to craft'; box.appendChild(lab);
+  const g = document.createElement('div'); g.className = 'mcgrid'; box.appendChild(g);
+  list.forEach((r, i) => g.appendChild(mcSlot(mode === 'furnace' ? artHTML(r.from) : resultArt(r), 0, mode === 'furnace' ? `${r.food ? 'Cook' : 'Smelt'} ${ITEM[r.from]}\n<span class="need">${G.items[r.from]} to ${r.food ? 'cook' : 'smelt'} · 1 coal each</span>` : recipeTip(r),
+    () => { craftSel[mode] = i; sfx('click'); renderCraft(); }, (i === craftSel[mode] ? 'sel ' : '') + (mode === 'furnace' ? (G.items[r.from] > 0 && G.items.coal > 0 ? '' : 'bad') : recipeDone(r) ? 'done' : canCraft(r) ? '' : 'bad'))));
+}
+function renderCraft() {
+  const el = $('recipes'); el.innerHTML = ''; mcTip().hidden = true;
+  $('craft').classList.add('mc');
+  $('craftClose').textContent = craftMode === 'inv' ? 'Done (E)' : 'Done';
+  $('craftT').textContent = craftMode === 'furnace' ? 'FURNACE' : craftMode === 'table' ? 'CRAFTING TABLE' : 'INVENTORY';
+  const top = document.createElement('div'); top.className = 'mctop'; el.appendChild(top);
+  if (craftMode === 'furnace') {
+    const list = SMELT; craftSel.furnace = Math.min(craftSel.furnace, list.length - 1); const r = list[craftSel.furnace];
+    const lab = document.createElement('div'); lab.className = 'mcl'; lab.style.width = '100%'; lab.textContent = 'Furnace'; top.appendChild(lab);
+    const n = Math.min(G.items[r.from], G.items.coal), wrap = document.createElement('div'); wrap.className = 'mccraft'; wrap.style.margin = '0 auto';
+    const col = document.createElement('div'); col.className = 'mccol';
+    col.appendChild(mcSlot(artHTML(r.from), G.items[r.from], `${ITEM[r.from]}\n<span class="need">to ${r.food ? 'cook' : 'smelt'}</span>`, null, G.items[r.from] ? '' : 'ghost'));
+    const fl = document.createElement('div'); fl.className = 'mcflame' + (n > 0 ? ' on' : ''); col.appendChild(fl);
+    col.appendChild(mcSlot(artHTML('coal'), G.items.coal, `Coal\n<span class="need">fuel: 1 per item</span>`, null, G.items.coal ? '' : 'ghost'));
+    const ar = document.createElement('div'); ar.className = 'mcarrow' + (n > 0 ? ' go' : '');
+    const out = mcSlot(artHTML(r.to), n, n > 0 ? `${r.name}\n<span class="need">Click to ${r.food ? 'cook' : 'smelt'} ${n}</span>` : `${r.name}\n<span class="bad">Needs ${ITEM[r.from].toLowerCase()} and coal</span>`, () => {
+      const k = Math.min(G.items[r.from], G.items.coal); if (k < 1) return;
+      G.items[r.from] -= k; G.items.coal -= k; G.items[r.to] += k; if (r.to === 'iron') G.smelted += k;
+      sfx('coin'); say(`The furnace glows… <b>+${k} ${r.name}${k > 1 ? 's' : ''}</b>`, 4000); renderCraft();
+    }, 'big' + (n > 0 ? '' : ' ghost'));
+    wrap.append(col, ar, out); top.appendChild(wrap);
+    invSection(el); recipeBook(el, list, 'furnace');
+    return;
+  }
+  const list = craftMode === 'table' ? RECIPES : RECIPES.filter((r) => !r.table), size = craftMode === 'table' ? 3 : 2;
+  craftSel[craftMode] = Math.min(craftSel[craftMode], list.length - 1); const r = list[craftSel[craftMode]];
+  if (craftMode === 'inv') {
+    const armor = document.createElement('div'); armor.className = 'mccol'; top.appendChild(armor);
+    for (const kind of ['helmet', 'chest', 'legs', 'boots']) armor.appendChild(mcSlot(armorImg(kind, G.armor), 0, G.armor ? `${ARMORS[G.armor]} ${kind === 'chest' ? 'chestplate' : kind}` : `Empty ${kind === 'chest' ? 'chestplate' : kind} slot\n<span class="need">Craft armor at a crafting table</span>`, null, G.armor ? '' : 'ghost'));
+    const pl = document.createElement('div'); pl.className = 'mcplayer'; pl.appendChild(playerCanvas()); top.appendChild(pl);
+  }
+  const cw = document.createElement('div'); cw.className = 'mccol'; if (craftMode === 'table') cw.style.margin = '0 auto';
+  const lab = document.createElement('div'); lab.className = 'mcl'; lab.textContent = 'Crafting'; cw.appendChild(lab);
+  const row = document.createElement('div'); row.className = 'mccraft'; row.style.marginLeft = '0';
+  const ok = canCraft(r), ar = document.createElement('div'); ar.className = 'mcarrow' + (ok ? ' go' : '');
+  const out = mcSlot(resultArt(r), recipeCount(r), recipeDone(r) ? `${r.name}\n<span class="need">Already crafted</span>` : ok ? `${r.name}\n<span class="need">Click to craft!</span>` : recipeTip(r),
+    () => { if (doCraft(r)) renderCraft(); }, 'big' + (ok ? '' : ' ghost'));
+  row.append(craftGrid(r, size), ar, out); cw.appendChild(row);
+  if (craftMode === 'inv') { cw.style.marginLeft = 'auto'; }
+  top.appendChild(cw);
+  invSection(el);
+  recipeBook(el, list, craftMode);
+  if (craftMode === 'inv') {
+    const p = document.createElement('p'); p.className = 'mcnote';
+    p.innerHTML = `${G.tables.size ? 'Tools, furnaces and buckets: right-click your <b>crafting table</b>.' : 'Tools, furnaces and buckets need a <b>crafting table</b>. Craft one here, then place it.'}<br>Pickaxe: <b>${TOOLS[G.tool]}</b> · Sword: <b>${SWORDS[G.sword]}</b> · Armor: <b>${ARMORS[G.armor]}</b> · Hearts: <b>${G.hp / 2} of 10</b>`;
+    el.appendChild(p);
+    const m = document.createElement('button'); m.className = 'btn alt'; m.textContent = 'Pause menu';
+    m.addEventListener('click', () => { closeCraft(); openMenu(); });
+    el.appendChild(m);
+  }
 }
 // any block along the view ray, including water and lava (the engine's ray skips those)
 function rayAny(reach) {
@@ -4223,6 +4708,17 @@ const SP_POWERS = {
   freeze: { name: 'FREEZE RAY', col: [0.6, 1, 1], tip: 'All bots are frozen!' },
 };
 const SP_WIN = 2; // round wins needed to win the match
+// ADMIN powers you get after you fall out of a Spleef round (all three modes)
+const SP_ADMIN = [
+  { name: 'Floor breaker', icon: 'pick', tip: 'click a spot: a big hole opens there', use(a) { if (!a.h) return warn('Look at the floor!'); for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) if (dx * dx + dz * dz <= 5) this.dig(a.h.x + dx, a.h.y, a.h.z + dz, dx === 0 && dz === 0); } },
+  { name: 'Drop TNT', icon: 'gunpowder', tip: 'drops a TNT that blows a crater', use(a) { G.tnts.push({ x: a.pt[0], y: Math.max(a.pt[1] + 4, curEye[1]), z: a.pt[2], vy: 0, t: 0 }); sfx('throw'); } },
+  { name: 'Launch bot', icon: 'feather', tip: 'aim at a bot: it flies into the sky', needsBot: true, use(a) { const b = a.bot, an = Math.random() * 6.28; b.vy = 15; b.kx = Math.sin(an) * 6; b.kz = Math.cos(an) * 6; sfx('jump'); banner('YEET!', `${b.name} goes flying!`, '#9fd8ff', 1200); } },
+  { name: 'Freeze bots', icon: 'snow', tip: 'every bot freezes for 6 seconds', use() { G.botsFrozen = 6; sfx('coin'); banner('FREEZE!', 'All bots are frozen solid!', '#9fe8ff', 1400); } },
+  { name: 'Speed gift', icon: 'blazeRod', tip: 'aim at a bot: it gets super speed', needsBot: true, use(a) { a.bot.fast = 8; sfx('coin'); banner('SPEED BOOTS!', `You gave ${a.bot.name} super speed!`, '#5cff70', 1400); } },
+  { name: 'Snowball gift', icon: 'bone', tip: 'aim at a bot: it throws a snowball storm', needsBot: true, use(a) { a.bot.blitz = 5; a.bot.throwT = 0; sfx('coin'); banner('SNOWBALL STORM!', `${a.bot.name} goes snowball crazy!`, '#e8f4ff', 1400); } },
+  { name: 'Hurry up', icon: 'flint', tip: 'the floor starts melting right now', use() { G.t = Math.max(G.t, 60); G.forceMelt = true; sfx('wave'); } },
+  { name: 'Next round', icon: 'compass', tip: 'end this round now (and remix the arena)', anytime: false, use() { banner('ADMIN SKIPS THE ROUND!', '', '#ffd36b', 1200); this.endRound(null); } },
+];
 const Spleef = {
   title: 'SPLEEF', yaw: 0, use: 'DIG',
   get outline() { return !!G && G.state === 'fight' && G.mode === 'classic' && !G.spect; },
@@ -4288,14 +4784,19 @@ const Spleef = {
   startMatch(mode) {
     G.mode = mode; G.round = 0; G.score = { you: 0 }; SP_BOTS.forEach((b) => { G.score[b.name] = 0; });
     G.matchT = 0;
-    setHotbar(mode === 'classic' ? [{ icon: 'pick', tip: 'Snow shovel (click to dig)' }, { icon: 'snow', tip: 'Snowballs (right-click to throw)' }] : mode === 'snowball' ? [{ icon: 'snow', tip: 'Snowballs (click or right-click)' }] : []);
     this.startRound();
+  },
+  playerHotbar() {
+    const mode = G.mode;
+    setHotbar(mode === 'classic' ? [{ icon: 'pick', tip: 'Snow shovel (click to dig)' }, { icon: 'snow', tip: 'Snowballs (right-click to throw)' }] : mode === 'snowball' ? [{ icon: 'snow', tip: 'Snowballs (click or right-click)' }] : []);
+    pick(0, true);
   },
   startRound() {
     G.round++; this.shape = G.round === 1 ? 'circle' : SP_SHAPES[Math.floor(Math.random() * SP_SHAPES.length)];
     this.arena();
     const n = G.hard ? 5 : 3, top = this.M().layers[0], spots = this.spawnSpots(n + 1);
-    Object.assign(G, { state: 'count', count: 3.5, t: 0, melt: 0, out: [], balls: [], powers: [], pw: {}, powT: 6, spect: false, vanish: new Map(), meltSaid: false, wasGround: true, botsFrozen: 0 });
+    Object.assign(G, { state: 'count', count: 3.5, t: 0, melt: 0, out: [], balls: [], powers: [], pw: {}, powT: 6, spect: false, vanish: new Map(), meltSaid: false, wasGround: true, botsFrozen: 0, fly: null, tnts: [], forceMelt: false });
+    this.playerHotbar();
     const [px, pz] = spots[0]; E.set_spawn(px, top + 1, pz); E.set_player(px, top + 1, pz);
     yaw = Math.atan2(32 - px, 32 - pz); pitch = -0.35;
     G.bots = SP_BOTS.slice(0, n).map((B, i) => { const [x, z] = spots[i + 1]; return { ...B, x, y: top + 1, z, vy: 0, yaw: 0, t: Math.random() * 5, think: 0, digT: 1 + Math.random(), throwT: 2 + Math.random() * 2, tx: 32, tz: 32, kx: 0, kz: 0, out: false, moving: false }; });
@@ -4318,7 +4819,8 @@ const Spleef = {
     let any = false; for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) any = this.dig(x + dx, y, z + dz, byPlayer && dx === 0 && dz === 0) || any; return any;
   },
   primary(dt, held, pressed) {
-    if ((G.state !== 'fight' && G.state !== 'count') || G.spect) return;
+    if (G.spect) { if (pressed) this.adminUse(); return; }
+    if (G.state !== 'fight' && G.state !== 'count') return;
     if (G.mode === 'snowball' || selected === 1) { if (held && G.cool <= 0) this.secondary(); return; }
     if (G.mode !== 'classic') return;
     if (!held) { G.rep = 0; return; }
@@ -4343,12 +4845,46 @@ const Spleef = {
     banner(`${b.name.toUpperCase()} IS OUT!`, `${left} left`, '#ffd36b', 1500);
   },
   playerOut() {
-    // watch the rest of the round from a platform high above the arena
+    // you are out... so you become the ADMIN: fly around and mess with the bots until the round ends
     G.spect = true; G.out.push('you'); sfx('splash');
     const y = this.M().layers[0] + 9;
-    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) setBlock(32 + dx, y, 4 + dz, 3);
-    E.set_spawn(32.5, y + 1, 4.5); E.set_player(32.5, y + 1, 4.5); yaw = 0; pitch = -0.6;
-    banner('YOU ARE OUT!', 'Watch the rest of the round from up here.', '#ff5280', 2200);
+    G.fly = { x: 32.5, y, z: 12.5 }; E.set_player(G.fly.x, G.fly.y, G.fly.z); yaw = 0; pitch = -0.5;
+    setHotbar(SP_ADMIN.map((a) => ({ icon: a.icon, tip: a.name + ' · ' + a.tip })));
+    pick(0, true);
+    banner('YOU ARE OUT... NOW YOU ARE ADMIN!', 'Fly: WASD + Space up / Shift down · 1-8 pick a power · click to use it', '#ffd36b', 3600);
+    say('<b style="color:#ffd36b">ADMIN MODE:</b> fly with <b>WASD</b>, <b>Space</b> goes up, <b>Shift</b> goes down. Press <b>1-8</b> to pick a power and <b>click</b> to use it on whatever you look at!', 12000);
+  },
+  // what you are pointing at: the block you look at, and the bot closest to your crosshair
+  adminAim() {
+    const h = rayAny(80);
+    const pt = h ? [h.x + 0.5, h.y + 0.5, h.z + 0.5] : [curEye[0] + curDir[0] * 25, curEye[1] + curDir[1] * 25, curEye[2] + curDir[2] * 25];
+    let bot = null, best = 0.2;
+    for (const b of G.bots) {
+      if (b.out) continue;
+      const vx = b.x - curEye[0], vy = b.y + 1 - curEye[1], vz = b.z - curEye[2], l = Math.hypot(vx, vy, vz) || 1;
+      const a = Math.acos(Math.max(-1, Math.min(1, (vx * curDir[0] + vy * curDir[1] + vz * curDir[2]) / l)));
+      if (a < best) { best = a; bot = b; }
+    }
+    if (!bot) { let bd = 3.5; for (const b of G.bots) if (!b.out) { const d = Math.hypot(b.x - pt[0], b.z - pt[2]); if (d < bd) { bd = d; bot = b; } } }
+    return { h, pt, bot };
+  },
+  adminUse() {
+    const A = SP_ADMIN[selected]; if (!A) return;
+    if (G.state !== 'fight' && !A.anytime) return warn('Wait for the round to start!');
+    const aim = this.adminAim();
+    if (A.needsBot && !aim.bot) return warn('Point your crosshair at a bot!');
+    A.use.call(this, aim);
+  },
+  boom(x, y, z, r) {
+    sfx('boom');
+    const ids = this.M().ids;
+    for (let dx = -Math.ceil(r); dx <= r; dx++) for (let dy = -Math.ceil(r); dy <= r; dy++) for (let dz = -Math.ceil(r); dz <= r; dz++) {
+      if (dx * dx + dy * dy + dz * dz > r * r) continue;
+      const bx = Math.floor(x) + dx, by = Math.floor(y) + dy, bz = Math.floor(z) + dz;
+      if (ids.includes(E.get_block(bx, by, bz))) { setBlock(bx, by, bz, 0); if (Math.random() < 0.25) blockBurst(bx, by, bz, 25); }
+    }
+    for (let k = 0; k < 40 && FX.length < 240; k++) FX.push({ x, y, z, vx: (Math.random() - 0.5) * 12, vy: Math.random() * 9, vz: (Math.random() - 0.5) * 12, t: 0, life: 0.7, col: [1, 0.4 + Math.random() * 0.5, 0.1], s: 0.09 });
+    for (const b of G.bots) if (!b.out) { const dx = b.x - x, dz = b.z - z, d = Math.hypot(dx, dz, b.y - y); if (d < r + 2.5) { const k = (r + 2.5 - d) * 3; b.kx = dx / (Math.hypot(dx, dz) || 1) * k; b.kz = dz / (Math.hypot(dx, dz) || 1) * k; b.vy = Math.max(b.vy, 6); } }
   },
   under(x, y, z, half = 0.15) { return [[-half, -half], [half, -half], [-half, half], [half, half]].some(([ox, oz]) => E.solid_at(x + ox, y, z + oz)); },
   // TNT Run: whatever you stand on drops away a moment later
@@ -4379,7 +4915,8 @@ const Spleef = {
     if (b.goal === 'you') { b.tx = px; b.tz = pz; } else if (b.goal && b.goal.x != null) { b.tx = b.goal.x; b.tz = b.goal.z; }
     let dx = b.tx - b.x, dz = b.tz - b.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
     b.yaw = Math.atan2(dx, dz);
-    const sp = frozen ? 0 : (G.hard ? 3.6 : 3) * (G.state === 'fight' ? 1 : 0) * (tnt ? 1.1 : 1);
+    b.fast = Math.max(0, (b.fast || 0) - dt); b.blitz = Math.max(0, (b.blitz || 0) - dt);
+    const sp = frozen ? 0 : (G.hard ? 3.6 : 3) * (G.state === 'fight' ? 1 : 0) * (tnt ? 1.1 : 1) * (b.fast > 0 ? 1.7 : 1);
     b.moving = (tnt ? d > 0.6 : d > 2.2) && sp > 0;
     const onGround = b.vy <= 0 && this.under(b.x, b.y - 0.05, b.z);
     if (b.moving) {
@@ -4413,9 +4950,9 @@ const Spleef = {
       b.digT = dug ? (G.hard ? 0.8 : 1.3) + Math.random() * (G.hard ? 0.7 : 1.2) : 0.35;
     }
     // Snowball Fight (and now and then in Classic): throw snowballs at someone
-    if (G.state === 'fight' && !frozen && !tnt && b.throwT <= 0) {
+    if (G.state === 'fight' && !frozen && (!tnt || b.blitz > 0) && b.throwT <= 0) {
       const sb = G.mode === 'snowball';
-      b.throwT = sb ? (G.hard ? 0.9 : 1.4) + Math.random() * 1.2 : 4 + Math.random() * 4;
+      b.throwT = b.blitz > 0 ? 0.18 : sb ? (G.hard ? 0.9 : 1.4) + Math.random() * 1.2 : 4 + Math.random() * 4;
       const cand = [];
       if (!G.spect && Math.hypot(px - b.x, pz - b.z) < 14) cand.push([px, py + 1.1, pz], [px, py + 1.1, pz]);
       for (const q of G.bots) if (q !== b && !q.out && Math.hypot(q.x - b.x, q.z - b.z) < 14) cand.push([q.x, q.y + 1.1, q.z]);
@@ -4461,6 +4998,25 @@ const Spleef = {
     if (G.pw.jump > 0 && G.wasGround && !og && (keys.Space || touchJump)) E.player_push(0, 12, 0);
     G.wasGround = og;
     for (const b of G.bots) this.botStep(b, dt);
+    // admin: fly anywhere (the engine walks you each frame, then we put you back where you are flying)
+    if (G.spect && G.fly) {
+      const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) - joy.y, sd = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + joy.x;
+      const up = (keys.Space || touchJump ? 1 : 0) - (keys.ShiftLeft || keys.ShiftRight ? 1 : 0), sp = 13;
+      const sy = Math.sin(yaw), cy = Math.cos(yaw);
+      G.fly.x = Math.max(-10, Math.min(74, G.fly.x + (sy * f - cy * sd) * sp * dt));
+      G.fly.z = Math.max(-10, Math.min(74, G.fly.z + (cy * f + sy * sd) * sp * dt));
+      G.fly.y = Math.max(5, Math.min(60, G.fly.y + up * sp * dt));
+      E.set_player(G.fly.x, G.fly.y, G.fly.z);
+    }
+    // admin TNT: fuse, then boom
+    if (G.tnts && G.tnts.length) {
+      for (const n of G.tnts) {
+        n.t += dt; n.vy -= 18 * dt; const ny = n.y + n.vy * dt;
+        if (n.vy < 0 && E.solid_at(n.x, ny, n.z)) { n.y = Math.floor(ny) + 1; n.vy = 0; } else n.y = ny;
+        if (n.t > 1.6 || n.y < this.outY()) { n.dead = true; if (n.y > this.outY()) this.boom(n.x, n.y, n.z, 2.6); }
+      }
+      G.tnts = G.tnts.filter((n) => !n.dead);
+    }
     // TNT Run: mark under you, then drop the floor
     if (G.mode === 'tnt' && G.state === 'fight') {
       if (!G.spect && og) this.markVanish(px, py, pz, 0.3);
@@ -4498,7 +5054,7 @@ const Spleef = {
       G.powers = G.powers.filter((p) => !p.taken);
     }
     // after a minute the floors melt from the edges, so every round ends
-    if (G.state === 'fight' && G.t > 60 && G.mode !== 'tnt') {
+    if (G.state === 'fight' && G.t > 60 && (G.mode !== 'tnt' || G.forceMelt)) {
       if (!G.meltSaid) { G.meltSaid = true; banner('THE SNOW IS MELTING!', 'The floors shrink from the edges. Get to the middle!', '#ff8f26', 2600); }
       G.melt -= dt;
       if (G.melt <= 0) {
@@ -4546,6 +5102,7 @@ const Spleef = {
   draw(V, I) {
     for (const b of G.bots) if (!b.out) this.drawPerson(V, I, b);
     for (const s of G.balls) pushBox(V, I, [s.x, s.y, s.z], [0, 0, 0], [0.12, 0.12, 0.12], [0.95, 0.97, 1]);
+    for (const n of G.tnts || []) { const fl = Math.floor(n.t * (n.t > 1 ? 10 : 4)) % 2; pushBox(V, I, [n.x, n.y + 0.4, n.z], [0, 0, 0], [0.4, 0.4, 0.4], fl ? [1, 1, 1] : [0.85, 0.15, 0.12], n.t * 0.5, fl ? 3 : 0); pushBox(V, I, [n.x, n.y + 0.4, n.z], [0, 0, 0], [0.41, 0.12, 0.41], [0.95, 0.92, 0.85], n.t * 0.5); }
     for (const p of G.powers) { const o = [p.x, p.y + Math.sin(p.t * 3) * 0.15, p.z]; pushBox(V, I, o, [0, 0, 0], [0.22, 0.22, 0.22], SP_POWERS[p.kind].col, p.t * 2, 3); pushBox(V, I, o, [0, 0, 0], [0.12, 0.3, 0.12], [1, 1, 1], -p.t * 3, 3); }
     for (const f of G.flakes) pushBox(V, I, [f.x, f.y, f.z], [0, 0, 0], [0.03, 0.03, 0.03], [1, 1, 1], f.ph);
   },
@@ -4555,7 +5112,8 @@ const Spleef = {
     const rows = G.bots.map((b) => row(`${b.name} (${G.score[b.name] || 0})`, st(!b.out))).join('');
     const pw = Object.entries(G.pw).filter(([, v]) => v > 0).map(([k, v]) => row(SP_POWERS[k].name.toLowerCase(), Math.ceil(v) + 's')).join('') + (G.botsFrozen > 0 ? row('bots frozen', Math.ceil(G.botsFrozen) + 's') : '');
     const head = G.state === 'count' ? 'Get ready!' : G.state === 'between' ? 'Next round…' : fmtTime(G.t);
-    return `<h2>${this.M().name.toUpperCase()} · ROUND ${G.round}</h2><div class="big">${head}</div>${row(`You (${G.score.you || 0})`, st(!G.spect))}${rows}${pw ? '<hr>' + pw : ''}<hr>${row('Win', SP_WIN + ' rounds')}${G.mode === 'classic' ? row('Click / right', 'dig / throw') : G.mode === 'snowball' ? row('Click', 'throw') : row('Tip', 'never stop!')}`;
+    const adm = G.spect ? `<div class="big" style="color:#ffd36b">★ ADMIN MODE ★</div>${row('Power', (SP_ADMIN[selected] || {}).name || '-')}${row('Fly', 'WASD · Space / Shift')}<hr>` : '';
+    return `<h2>${this.M().name.toUpperCase()} · ROUND ${G.round}</h2><div class="big">${head}</div>${adm}${row(`You (${G.score.you || 0})`, G.spect ? '<span style="color:#ffd36b">admin</span>' : st(true))}${rows}${pw ? '<hr>' + pw : ''}<hr>${row('Win', SP_WIN + ' rounds')}${G.mode === 'classic' ? row('Click / right', 'dig / throw') : G.mode === 'snowball' ? row('Click', 'throw') : row('Tip', 'never stop!')}`;
   },
 };
 // ---------- 2-PLAYER NUGGET RACE (split screen, one keyboard) ----------
@@ -4702,7 +5260,7 @@ const Duo = {
         if (q.boosting) for (let k = 0; k < 3; k++) pushBox(V, I, [q.x - Math.sin(q.yaw) * (0.8 + k * 0.35), q.y + 0.35, q.z - Math.cos(q.yaw) * (0.8 + k * 0.35)], [0, 0, 0], [0.12 - k * 0.03, 0.12 - k * 0.03, 0.12 - k * 0.03], [1, 0.75 - k * 0.2, 0.2], T * 9 + k, 3);
       }
       fxStep(r.i ? 0 : 1 / 60);
-      for (const p of FX) { const k = 1 - p.t / p.life * 0.5; pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [p.s * k, p.s * k, p.s * k], p.col, p.t * 3); }
+      drawFX(V, I);
       drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES);
       // shadows, water and clouds
       gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE); gl.depthMask(false);
@@ -5609,7 +6167,7 @@ function toLobby() {
   scene = 'lobby'; G = null; gameIdx = -1; race.on = false; race.prevX = null;
   resetHud(); loadWorld(0);
   yaw = 0; pitch = -0.05; selected = 0;
-  $('board').innerHTML = LOBBY_BOARD; lastBoard = '';
+  $('board').innerHTML = dn(LOBBY_BOARD); lastBoard = '';
   setHotbar(LOBBY_SLOTS); updateTouch();
   say('Back in the lobby.', 4000);
 }
@@ -5652,6 +6210,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyB' && !joining) { if (scene !== 'lobby') toLobby(); else { if (E.is_riding()) E.toggle_ride(); E.respawn_player(); yaw = 0; pitch = -0.05; race.on = false; say('Back at spawn.', 3000); } }
   if (e.code === 'KeyQ') whistle();
+  if (e.code === 'KeyR' && scene === 'lobby' && !anyDialog()) setPower();
   if (SMP_ON && scene === 'survival' && G && G.smp && !anyDialog() && (e.code === 'Enter' || e.code === 'Slash' || e.code === 'KeyT')) { e.preventDefault(); SMP.openChat(e.code === 'Slash' ? '/' : ''); return; }
   if (e.code === 'KeyK' && scene === 'lobby' && !anyDialog()) openShop();
   if (e.code === 'KeyT' && scene === 'lobby' && !anyDialog()) doTrick();
@@ -5774,8 +6333,37 @@ function blockBurst(x, y, z, id) {
     FX.push({ x: x + 0.2 + Math.random() * 0.6, y: y + 0.2 + Math.random() * 0.6, z: z + 0.2 + Math.random() * 0.6, vx: (Math.random() - 0.5) * 3, vy: 1 + Math.random() * 3, vz: (Math.random() - 0.5) * 3, t: 0, life: 0.5 + Math.random() * 0.45, col: [c[0] * k, c[1] * k, c[2] * k], s: 0.04 + Math.random() * 0.04 });
   }
 }
+// real fire: white-hot core -> yellow -> orange -> deep red -> grey smoke, growing as it burns
+function spawnFire(x, y, z, vx, vy, vz, size = 0.08, life = 0.7) {
+  if (FX.length < 900) FX.push({ x, y, z, vx, vy, vz, t: 0, life: life * (0.75 + Math.random() * 0.5), s: size * (0.7 + Math.random() * 0.6), fire: 1, seed: Math.random() * 100, col: [1, 1, 1] });
+  if (Math.random() < 0.18 && FX.length < 900) FX.push({ x, y, z, vx: vx * 0.9 + (Math.random() - 0.5) * 3, vy: vy * 0.7 + 1 + Math.random() * 3, vz: vz * 0.9 + (Math.random() - 0.5) * 3, t: 0, life: 0.6 + Math.random() * 0.6, s: 0.018 + Math.random() * 0.012, ember: 1, col: [1, 0.8, 0.3] });
+}
+const FIRE_RAMP = [[0, [1, 1, 0.85]], [0.12, [1, 0.92, 0.45]], [0.32, [1, 0.6, 0.12]], [0.55, [0.95, 0.28, 0.05]], [0.72, [0.55, 0.1, 0.04]], [0.8, [0.22, 0.2, 0.2]], [1, [0.32, 0.31, 0.31]]];
+function fireCol(u) { for (let i = 1; i < FIRE_RAMP.length; i++) if (u <= FIRE_RAMP[i][0]) { const [a, ca] = FIRE_RAMP[i - 1], [b, cb] = FIRE_RAMP[i], k = (u - a) / (b - a); return [ca[0] + (cb[0] - ca[0]) * k, ca[1] + (cb[1] - ca[1]) * k, ca[2] + (cb[2] - ca[2]) * k]; } return FIRE_RAMP[FIRE_RAMP.length - 1][1]; }
+// every particle drawn the same way everywhere (fire glows and grows, smoke puffs up, embers flicker)
+function drawFX(V, I) {
+  for (const p of FX) {
+    const u = p.t / p.life;
+    if (p.fire) {
+      const smoke = u > 0.74, fl = smoke ? 1 : 0.82 + 0.36 * Math.abs(Math.sin(p.seed + p.t * 37)), c = fireCol(u).map((v) => Math.min(1, v * fl));
+      const sz = p.s * (smoke ? 1.9 + (u - 0.74) * 2.5 : 0.35 + u * 2.1) * (smoke ? 1 - (u - 0.74) * 1.6 : 1);
+      if (sz > 0.004) pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [sz, sz, sz], c, p.seed + p.t * 4, smoke ? 0 : 3);
+    } else if (p.ember) {
+      const c = Math.sin(p.t * 40 + p.x * 9) > -0.3 ? [1, 0.85 - u * 0.5, 0.35 - u * 0.3] : [1, 0.45, 0.1], sz = p.s * (1 - u * 0.6);
+      pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [sz, sz, sz], c, p.t * 6, 3);
+    } else { const k = 1 - u * 0.5; pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [p.s * k, p.s * k, p.s * k], p.col, p.t * 3); }
+  }
+}
 function fxStep(dt) {
   for (const p of FX) {
+    if (p.fire) {
+      p.t += dt; const u = p.t / p.life, drag = Math.pow(u > 0.74 ? 0.2 : 0.45, dt);
+      p.vx *= drag; p.vz *= drag; p.vy = p.vy * drag + (u > 0.74 ? 2.2 : 5.5) * dt;          // flames and smoke float up
+      p.vx += Math.sin(p.seed + p.t * 9) * 4 * dt; p.vz += Math.cos(p.seed * 1.3 + p.t * 8) * 4 * dt;   // flicker and swirl
+      p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+      continue;
+    }
+    if (p.ember) { p.t += dt; p.vy -= 6 * dt; p.vx *= Math.pow(0.4, dt); p.vz *= Math.pow(0.4, dt); p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; continue; }
     p.t += dt; p.vy -= 18 * dt;
     const ny = p.y + p.vy * dt;
     if (p.vy < 0 && E.solid_at(p.x, ny, p.z)) { p.vy *= -0.25; p.vx *= 0.5; p.vz *= 0.5; } else p.y = ny;
@@ -5925,7 +6513,9 @@ function frame(now) {
   if (scene === 'duo') { fx = 0; fz = 0; }
   padStep(dt);
   if (boostT > 0 && ridingNow) { fx *= 1.8; fz *= 1.8; }
+  if (lobby && hasSet('hero')) { fx *= 1.4; fz *= 1.4; }
   if (scene === 'spleef' && G && G.pw && G.pw.speed > 0) { fx *= 1.5; fz *= 1.5; }
+  if (lobby) dragonFly(dt, ridingNow && playing && !blocked ? jump : 0, ridingNow);
   const ret = joining ? 0 : E.player_step(dt, fx, fz, scene === 'duo' ? 0 : jump, sprint);
   if (lobby) {
     E.dog_step(dt);
@@ -6012,7 +6602,7 @@ function frame(now) {
     if ((scene === 'wars' || scene === 'survival' || scene === 'parkour' || scene === 'spleef') && G) GAMES[scene].draw(V, I);
     AMB.night = nightK; ambientStep(dt, V, I); drawBones(V, I); fireworkStep(dt);
     fxStep(dt);
-    for (const p of FX) { const k = 1 - p.t / p.life * 0.5; pushBox(V, I, [p.x, p.y, p.z], [0, 0, 0], [p.s * k, p.s * k, p.s * k], p.col, p.t * 3); }
+    drawFX(V, I);
     if (I.length) drawGeo(fxGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES);
   }
   // targeted block outline
@@ -6074,10 +6664,10 @@ function frame(now) {
     $('ridebar').hidden = !riding || !playing;
     if (riding) {
       const t = race.on ? 'LAP ' + fmtTime(race.t) : 'RIDE THROUGH THE ARCH TO RACE';
-      $('ridebar').textContent = `${t} · RIGHT-CLICK TURBO · F HOP OFF`;
+      $('ridebar').textContent = dn(canFly() ? `${t} · FLY ${flyMeter()} · F HOP OFF` : `${t} · RIGHT-CLICK TURBO · F HOP OFF`);
     }
     const near = !riding && E.dog_distance() < 3.5 && playing;
-    $('prompt').hidden = !near; if (near) $('prompt').textContent = coarse ? 'Tap RIDE to hop on Nugget' : 'Press F to ride Nugget';
+    $('prompt').hidden = !near; if (near) $('prompt').textContent = dn(coarse ? 'Tap RIDE to hop on Nugget' : 'Press F to ride Nugget');
     if (playing && mode === 2 && !dogWasSitting) say(Math.random() < 0.5 ? '<b>Nugget</b>: Yee-haw! Woof!' : '<b>Nugget</b>: Howdy, partner!', 4000);
     dogWasSitting = mode === 2;
   } else if (G) {
