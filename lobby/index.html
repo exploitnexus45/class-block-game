@@ -198,8 +198,8 @@ h3.sec { margin: 6px 0 0; font: 700 12px/1.3 var(--display); letter-spacing: .06
 .mcs.big { width: calc(var(--s) * 1.45); height: calc(var(--s) * 1.45); }
 .mctop { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; }
 .mccol { display: grid; }
-.mcplayer { width: calc(var(--s) * 2.8); height: calc(var(--s) * 4); background: #000; box-shadow: inset 3px 3px 0 #373737, inset -3px -3px 0 #fff; display: grid; place-items: end center; overflow: hidden; }
-.mcplayer canvas { width: 96%; image-rendering: pixelated; }
+.mcplayer { width: calc(var(--s) * 2.8); height: calc(var(--s) * 4); background: #3d6fc4; box-shadow: inset 3px 3px 0 #373737, inset -3px -3px 0 #fff; display: grid; place-items: end center; overflow: hidden; }
+.mcplayer canvas { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
 .mccraft { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .mcarrow { width: calc(var(--s) * .62); height: calc(var(--s) * .46); background: #8b8b8b; clip-path: polygon(0 32%, 58% 32%, 58% 0, 100% 50%, 58% 100%, 58% 68%, 0 68%); }
 .mcarrow.go { background: #fff; }
@@ -420,7 +420,7 @@ float vn(vec3 p){ vec3 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
              mix(mix(h3(i+vec3(0.0,0.0,1.0)),h3(i+vec3(1.0,0.0,1.0)),f.x),mix(h3(i+vec3(0.0,1.0,1.0)),h3(i+vec3(1.0,1.0,1.0)),f.x),f.y),f.z); }
 const float RES=400.0; // texture pixels per block face
 void main(){
-  float d=floor(vAux.x+0.5); float m=floor(vAux.y+0.5); float lt=vAux.z; float cm=floor(m/1024.0+0.0005); m-=cm*1024.0;
+  float d=floor(vAux.x+0.5); float m=floor(vAux.y+0.5); float lt=vAux.z; float bq=floor(m/16384.0+0.00005); m-=bq*16384.0; float cm=floor(m/1024.0+0.0005); m-=cm*1024.0;
   if(is(m,12.0)){ float f=smoothstep(140.0,260.0,vDist); FRAG=vec4(mix(vCol*(0.82+0.18*lt)*max(uLight,0.22),uFog,f*0.7),0.86*(1.0-f)); return; }
   if(is(m,13.0)){ FRAG=vec4(0.0,0.0,0.0,0.34*vCol.r); return; }
   if(m>13.5 && m<15.5){
@@ -553,6 +553,7 @@ void main(){
     col*=uLight*vec3(mix(0.75,1.0,uLight),mix(0.8,1.0,uLight),1.0);
     col*=mix(vec3(1.0), mix(vec3(0.92,0.97,1.1),vec3(1.06,1.0,0.92),smoothstep(0.42,0.95,lt)), day);
     col+=c*day*0.07*vec3(0.85,0.92,1.0); // a little sky light fills in the shadows
+    if(bq>0.5){ float k=pow(bq/7.0,1.3)*(1.6-0.9*uLight); col=max(col, c*k*vec3(1.15,0.85,0.5)); col+=c*k*0.25*vec3(1.0,0.55,0.15); } // warm light from nearby blaze lamps
   } else col*=1.12; // glowing blocks shine a bit brighter
   col=mix(vec3(dot(col,vec3(0.299,0.587,0.114))),col,1.14)*vec3(1.02,1.0,0.97);
   vec3 vd=normalize(vView); float sg=max(dot(vd,normalize(vec3(0.45,0.55,0.7))),0.0);
@@ -1302,6 +1303,10 @@ function buildAtlas() {
 }
 // which block (and which side of it) each face of the world shows; stored in the material slot
 function tagFaces(v, nv) {
+  // every glowing lamp block lights the faces around it (up to 7 blocks away)
+  const lamps = [];
+  for (let i = 0; i < 64 * 64 * 40; i++) { const b = WB[i]; if (b === 21 || b === 22) lamps.push([(i & 63) + 0.5, (i >> 12) + 0.5, ((i >> 6) & 63) + 0.5]); }
+  const lampLight = (x, y, z) => { let best = 0; for (const L of lamps) { const dx = L[0] - x, dy = L[1] - y, dz = L[2] - z; const d2 = dx * dx + dy * dy + dz * dz; if (d2 < 49) best = Math.max(best, 1 - Math.sqrt(d2) / 7); } return Math.round(best * 7); };
   for (let k = 0; k + 3 < nv; k += 4) {
     const o = k * 9, d = Math.round(v[o + 6]), mat = Math.round(v[o + 7]);
     if (mat === 1 || mat === 2 || mat >= 12) continue;
@@ -1318,7 +1323,8 @@ function tagFaces(v, nv) {
       const same = (s, A) => E.get_block(bx + s * A[0], by + s * A[1], bz + s * A[2]) === id && E.get_block(bx + s * A[0] + nx, by + s * A[1] + ny, bz + s * A[2] + nz) !== id;
       mask = (same(-1, U) ? 1 : 0) | (same(1, U) ? 2 : 0) | (same(-1, W) ? 4 : 0) | (same(1, W) ? 8 : 0);
     }
-    const code = (mat === 3 ? 400 : 100) + id * 3 + face + mask * 1024;
+    const bq = lamps.length && id !== 21 && id !== 22 ? lampLight(cx + nx * 0.5, cy + ny * 0.5, cz + nz * 0.5) : 0;
+    const code = (mat === 3 ? 400 : 100) + id * 3 + face + mask * 1024 + bq * 16384;
     for (let j = 0; j < 4; j++) v[o + 7 + j * 9] = code;
   }
 }
@@ -1354,7 +1360,7 @@ function itemIcon(kind, tier) {
   const blob = (cx, cy, rx, ry, rot, fill) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot, 0, 6.283); x.fillStyle = fill; x.fill(); };
   const poly = (pts, fill) => { x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.closePath(); x.fillStyle = fill; x.fill(); };
   const stroke = (pts, col, w) => { x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.strokeStyle = col; x.lineWidth = w; x.lineCap = 'round'; x.lineJoin = 'round'; x.stroke(); };
-  const TIERS = { 0: ['#9a6a3a', '#c99a62', '#6a4422'], 1: ['#9a6a3a', '#c99a62', '#6a4422'], 2: ['#8a8a90', '#c2c2c8', '#55555c'], 3: ['#d6d8dc', '#ffffff', '#8c9096'], 4: ['#3fe0dc', '#c8fffd', '#178c8a'] };
+  const TIERS = { 0: ['#9a6a3a', '#c99a62', '#6a4422'], 1: ['#9a6a3a', '#c99a62', '#6a4422'], 2: ['#8a8a90', '#c2c2c8', '#55555c'], 3: ['#d6d8dc', '#ffffff', '#8c9096'], 4: ['#3fe0dc', '#c8fffd', '#178c8a'], 5: ['#ff8a1a', '#fff09a', '#b8400a'] };
   const meat = (raw, cooked, fat, bone) => {
     const col = raw ? ['#e0574e', '#b8302c', '#f08a80'] : ['#a8643a', '#6e3a1c', '#d6935a'];
     if (bone) { stroke([[64, 64], [82, 82]], '#ece8dc', 9); blob(84, 84, 7, 5, 0.8, '#f4f1e8'); blob(80, 88, 6, 5, 0.8, '#f4f1e8'); }
@@ -1470,6 +1476,14 @@ function itemIcon(kind, tier) {
       stroke([[80, 12], [18, 84]], '#9a9488', 2); break;
     }
     case 'gunpowder': { const r = texRng(9); for (let i = 0; i < 40; i++) blob(24 + r() * 48, 40 + r() * 36 - Math.abs(r() - 0.5) * 20, 4, 3, r() * 3, r() < 0.5 ? '#5a5a62' : '#2c2c32'); break; }
+    case 'blazePowder': { const r = texRng(31); for (let i = 0; i < 46; i++) blob(26 + r() * 44, 44 + r() * 30 - Math.abs(r() - 0.5) * 16, 4, 3, r() * 3, ['#ff7a10', '#ffb020', '#ffe070', '#d84a08'][Math.floor(r() * 4)]); blob(48, 40, 6, 5, 0, '#fff4b0'); break; }
+    case 'fireWand': { stroke([[20, 82], [64, 36]], '#5a2a0a', 13); stroke([[20, 82], [64, 36]], '#ffb020', 8); stroke([[24, 76], [60, 40]], '#fff0a0', 3); blob(70, 28, 16, 16, 0, R(70, 28, 18, [[0, '#ffffff'], [0.35, '#ffe060'], [0.7, '#ff7a10'], [1, '#c0300a']])); for (const [a, b] of [[70, 6], [88, 22], [84, 44], [52, 14]]) stroke([[70, 28], [a, b]], 'rgba(255,190,60,.8)', 3); break; }
+    case 'potionSpeed': case 'potionStrength': case 'potionFire': {
+      const col = { potionSpeed: ['#7ad0ff', '#2c7ac8'], potionStrength: ['#ff6a5a', '#a01a1a'], potionFire: ['#ffb040', '#c0500a'] }[kind];
+      poly([[40, 14], [56, 14], [56, 36], [40, 36]], 'rgba(220,235,255,.7)'); poly([[38, 8], [58, 8], [58, 16], [38, 16]], '#8a5a30');
+      blob(48, 60, 28, 28, 0, 'rgba(225,240,255,.55)'); blob(48, 64, 24, 22, 0, R(48, 64, 26, [[0, '#ffffff'], [0.3, col[0]], [1, col[1]]]));
+      blob(38, 52, 6, 9, 0.5, 'rgba(255,255,255,.75)'); break;
+    }
     case 'blazeRod': { stroke([[22, 78], [74, 20]], '#b85a10', 12); stroke([[22, 78], [74, 20]], '#ffb020', 8); stroke([[26, 72], [70, 24]], '#fff0a0', 3); break; }
     case 'goldNugget': for (const [a, b, r] of [[38, 54, 13], [58, 44, 11], [56, 64, 10]]) blob(a, b, r, r, 0, R(a, b, r, [[0, '#fff3b0'], [0.6, '#ffd040'], [1, '#a87810']])); break;
     default: blob(48, 48, 28, 24, 0, R(48, 48, 30, [[0, '#ffffff'], [0.5, kind], [1, '#000']]));
@@ -2330,17 +2344,21 @@ const HARD = { 1: [.5, 0], 2: [.45, 0], 12: [.45, 0], 6: [.2, 0], 5: [1.2, 0], 7
 const DROP = { 1: 2, 3: 9, 17: 'coal', 18: 'rawIron', 19: 'rawGold', 20: 'diamond', 24: 'diamond' };
 const ITEM = { coal: 'Coal', rawIron: 'Raw iron', rawGold: 'Raw gold', iron: 'Iron ingot', gold: 'Gold ingot', diamond: 'Diamond', flint: 'Flint', leather: 'Leather', feather: 'Feather',
   beef: 'Raw beef', cookedBeef: 'Steak', pork: 'Raw porkchop', cookedPork: 'Cooked porkchop', chicken: 'Raw chicken', cookedChicken: 'Cooked chicken', mutton: 'Raw mutton', cookedMutton: 'Cooked mutton',
-  seeds: 'Seeds', wheat: 'Wheat', bread: 'Bread', rottenFlesh: 'Rotten flesh', bone: 'Bone', gunpowder: 'Gunpowder', blazeRod: 'Blaze rod', goldNugget: 'Gold nugget' };
+  seeds: 'Seeds', wheat: 'Wheat', bread: 'Bread', rottenFlesh: 'Rotten flesh', bone: 'Bone', gunpowder: 'Gunpowder', blazeRod: 'Blaze rod', goldNugget: 'Gold nugget',
+  blazePowder: 'Blaze powder', fireWand: 'Fire wand', potionSpeed: 'Potion of Speed', potionStrength: 'Potion of Strength', potionFire: 'Potion of Fire Resistance' };
 const ITEM_COL = { coal: '#2b2b2e', rawIron: '#c9a07a', rawGold: '#e8c040', iron: '#d8d8d8', gold: '#ffd933', diamond: '#59f2f2', flint: '#3c3c40', leather: '#8a5530', feather: '#f2f2ee',
   beef: '#c9403c', cookedBeef: '#7a4a2a', pork: '#f0a0a0', cookedPork: '#c98a50', chicken: '#f2c8b8', cookedChicken: '#d89a50', mutton: '#c85a50', cookedMutton: '#9a5a3a',
-  seeds: '#7fbf3a', wheat: '#e0c060', bread: '#c8893c', rottenFlesh: '#8a6a3a', bone: '#ecebe2', gunpowder: '#5a5a5e', blazeRod: '#ffb020', goldNugget: '#ffd94a' };
+  seeds: '#7fbf3a', wheat: '#e0c060', bread: '#c8893c', rottenFlesh: '#8a6a3a', bone: '#ecebe2', gunpowder: '#5a5a5e', blazeRod: '#ffb020', goldNugget: '#ffd94a',
+  blazePowder: '#ff9a1a', fireWand: '#ff6a10', potionSpeed: '#7ad0ff', potionStrength: '#e0403a', potionFire: '#ff9a2a' };
 // how many half-hearts each food restores
 const FOOD = { beef: 2, pork: 2, chicken: 2, mutton: 2, cookedBeef: 6, cookedPork: 6, cookedChicken: 5, cookedMutton: 5, bread: 5, rottenFlesh: 2 };
 // things you can hold in the hotbar and right-click with
-const HOLD = { seeds: 'right-click dirt or grass to plant, feed chickens', wheat: 'feed cows, sheep and pigs to breed them', bone: 'bone meal: right-click crops to grow them' };
-const SWORDS = ['Fists', 'Wooden sword', 'Stone sword', 'Iron sword', 'Diamond sword'], SWORD_DMG = [0, 4, 5, 6, 8];
+const HOLD = { seeds: 'right-click dirt or grass to plant, feed chickens', wheat: 'feed cows, sheep and pigs to breed them', bone: 'bone meal: right-click crops to grow them',
+  fireWand: 'right-click to shoot a fireball', potionSpeed: 'right-click to drink: run fast for 60 seconds', potionStrength: 'right-click to drink: hit harder for 60 seconds', potionFire: 'right-click to drink: lava and fire can\'t hurt you for 60 seconds' };
+const POTIONS = { potionSpeed: ['speed', 'SPEED', '#7ad0ff'], potionStrength: ['strength', 'STRENGTH', '#ff5a50'], potionFire: ['fireRes', 'FIRE RESISTANCE', '#ff9a2a'] };
+const SWORDS = ['Fists', 'Wooden sword', 'Stone sword', 'Iron sword', 'Diamond sword', 'Blaze sword'], SWORD_DMG = [0, 4, 5, 6, 8, 9];
 const ARMORS = ['None', 'Leather', 'Iron', 'Diamond'], ARMOR_K = [1, 0.72, 0.5, 0.32];
-const TIER_COL = [[0.55, 0.38, 0.2], [0.55, 0.38, 0.2], [0.55, 0.55, 0.58], [0.85, 0.85, 0.88], [0.35, 0.92, 0.9]];
+const TIER_COL = [[0.55, 0.38, 0.2], [0.55, 0.38, 0.2], [0.55, 0.55, 0.58], [0.85, 0.85, 0.88], [0.35, 0.92, 0.9], [1, 0.55, 0.1]];
 const DAY_LEN = 360;
 const LAVA = 15, WATER = 4, FURNACE = 8, OBSIDIAN = 11, TABLE = 100, GRAVEL = 31, PORTAL = 13, NETHERRACK = 23; // a crafting table is a planks block the game remembers
 BLOCK[TABLE] = ['Crafting table', '#a8743c'];
@@ -2366,6 +2384,14 @@ const RECIPES = [
   { name: 'Diamond armor', need: { diamond: 6 }, armor: 3, table: true },
   { name: 'Bread', need: { wheat: 3 }, table: true, col: '#c8893c', make: () => { G.items.bread++; G.bakedBread = true; Survival.giveHot('bread'); } },
   { name: 'Gold ingot', need: { goldNugget: 9 }, table: true, col: '#ffd933', make: () => { G.items.gold++; } },
+  // ---- blaze stuff (kill blazes in the Nether for blaze rods) ----
+  { name: '2 Blaze powder', need: { blazeRod: 1 }, art: 'blazePowder', make: () => { G.items.blazePowder += 2; } },
+  { name: '4 Blaze lamps', need: { blazePowder: 1, 9: 4 }, block: 21, table: true, make: () => Survival.add(21, 4) },
+  { name: 'Fire wand', need: { blazeRod: 1, blazePowder: 2, gold: 1 }, once: 'fireWand', art: 'fireWand', table: true, make: () => { G.items.fireWand = 1; Survival.giveHot('fireWand'); } },
+  { name: 'Blaze sword', need: { blazeRod: 2, diamond: 1 }, sword: 5, table: true },
+  { name: 'Potion of Speed', need: { blazePowder: 1, wheat: 2 }, art: 'potionSpeed', table: true, make: () => { G.items.potionSpeed++; Survival.giveHot('potionSpeed'); } },
+  { name: 'Potion of Strength', need: { blazePowder: 1, gunpowder: 1 }, art: 'potionStrength', table: true, make: () => { G.items.potionStrength++; Survival.giveHot('potionStrength'); } },
+  { name: 'Potion of Fire Resistance', need: { blazePowder: 1, goldNugget: 2 }, art: 'potionFire', table: true, make: () => { G.items.potionFire++; Survival.giveHot('potionFire'); } },
 ];
 const SMELT = [
   { name: 'Iron ingot', from: 'rawIron', to: 'iron', col: '#d8d8d8' },
@@ -2376,7 +2402,7 @@ const SMELT = [
   { name: 'Cooked mutton', from: 'mutton', to: 'cookedMutton', col: '#9a5a3a', food: true },
 ];
 const have = (k) => isNaN(k) ? G.items[k] : (G.inv[k] || 0);
-const recipeDone = (r) => (r.tool && G.tool >= r.tool) || (r.bucket && G.bucket) || (r.fns && G.fns) || (r.sword && G.sword >= r.sword) || (r.armor && G.armor >= r.armor);
+const recipeDone = (r) => (r.tool && G.tool >= r.tool) || (r.bucket && G.bucket) || (r.fns && G.fns) || (r.sword && G.sword >= r.sword) || (r.armor && G.armor >= r.armor) || (r.once && G.items[r.once] > 0);
 const canCraft = (r) => !recipeDone(r) && Object.entries(r.need).every(([k, n]) => have(k) >= n);
 const needText = (r) => Object.entries(r.need).map(([k, n]) => `${n} ${isNaN(k) ? ITEM[k] : sName(+k)}`).join(' + ');
 let craftMode = 'inv';
@@ -2395,11 +2421,12 @@ function recipeButton(r, el) {
     if (!canCraft(r)) return;
     for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
     if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); }
-    else if (r.sword) { G.sword = r.sword; say(`Crafted a <b>${SWORDS[r.sword]}</b>! It hits monsters much harder.`, 6000); }
+    else if (r.sword) { G.sword = r.sword; say(r.sword === 5 ? 'Crafted the <b>Blaze sword</b>! 🔥 It hits hard AND sets monsters on fire.' : `Crafted a <b>${SWORDS[r.sword]}</b>! It hits monsters much harder.`, 6000); }
     else if (r.armor) { G.armor = r.armor; say(`You put on <b>${ARMORS[r.armor]} armor</b>! Monsters hurt you less.`, 6000); }
     else r.make();
     if (r.block === TABLE) say('Crafting table made! Put it in your hotbar, place it (right-click), then right-click it to craft tools.', 8000);
     if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
+  if (r.block === 21) say('<b>Blaze lamps</b>! Put them in your hotbar and place them to light up caves and your base at night.', 7000);
     if (r.bucket) say(`Bucket crafted! It is in hotbar slot <b>${G.hot.indexOf('bucket') + 1}</b>. Right-click water with it to fill it.`, 8000);
     if (r.fns) say(`Flint and steel! It is in hotbar slot <b>${G.hot.indexOf('fns') + 1}</b>. Right-click an obsidian frame to light a <b>Nether portal</b>.`, 9000);
     Survival.hot(); renderCraft();
@@ -2420,27 +2447,54 @@ const ARMOR_PIX = {
   boots: ['................', '................', '..AAA......AAA..', '..ABA......ABA..', '..ABA......ABA..', '.AABA......ABAA.', '.ABBA......ABBA.', '.AAAA......AAAA.', '................'],
 };
 const armorArt = {};
+const armorGhost = {};
+function armorGhostImg(kind) { if (!armorGhost[kind]) { const rows = ARMOR_PIX[kind].slice(), top = Math.floor((16 - rows.length) / 2); for (let i = 0; i < top; i++) rows.unshift('................'); while (rows.length < 16) rows.push('................'); armorGhost[kind] = pix(rows, { A: '#6c6c6c', B: '#7e7e7e' }).toDataURL(); } return `<img class="art" alt="" src="${armorGhost[kind]}">`; }
 function armorImg(kind, tier) { const k = kind + tier; if (!armorArt[k]) { const rows = ARMOR_PIX[kind].slice(), pad = 16 - rows.length, top = Math.floor(pad / 2); for (let i = 0; i < top; i++) rows.unshift('................'); while (rows.length < 16) rows.push('................'); armorArt[k] = pix(rows, { A: ARMOR_DK[tier], B: ARMOR_COL[tier] }).toDataURL(); } return `<img class="art" alt="" src="${armorArt[k]}">`; }
-let playerPic = null, playerPicKey = '';
+let playerPic = null, playerPicKey = '', picFrame = 0;
 const toHex = (c) => '#' + c.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
-function playerCanvas() {   // you, with Nugget the corgi sitting at your feet (in his own fur and bandana colours)
-  const [O, D, C] = furCols(0).map(toHex), neck = NUG.neck, key = O + D + C + neck;
+const shadeHex = (c, k) => toHex(c.map((v) => v * k));
+// the little scene in the inventory: you, with Nugget the corgi beside you, on a grassy hill under the sky
+function playerCanvas() {
+  const fc = furCols(0), [O, D, C] = fc.map(toHex), neck = NUG.neck, f = picFrame % 4, key = O + D + C + neck + f;
   if (playerPic && key === playerPicKey) return playerPic;
   playerPicKey = key;
+  const W = 33, H = 47, Sc = 4;   // same shape as the picture box, so nothing gets cut off
+  const c = playerPic || document.createElement('canvas'); c.width = W * Sc; c.height = H * Sc;
+  const x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+  const px = (X, Y, col) => { x.fillStyle = col; x.fillRect(X * Sc, Y * Sc, Sc, Sc); };
+  // sky: banded pixel gradient, a couple of clouds, far hills, grass and dirt
+  const sky = ['#3d6fc4', '#4579cc', '#4e83d3', '#5a8fd9', '#679ade', '#76a6e2', '#86b2e6', '#97bfea'];
+  for (let y = 0; y < 34; y++) { x.fillStyle = sky[Math.min(7, Math.floor(y / 4.2))]; x.fillRect(0, y * Sc, W * Sc, Sc); }
+  for (const [cx, cy, w] of [[3, 5, 7], [21, 9, 9]]) { x.fillStyle = '#eef4fb'; x.fillRect(cx * Sc, cy * Sc, w * Sc, Sc * 2); x.fillRect((cx + 2) * Sc, (cy - 1) * Sc, (w - 4) * Sc, Sc); x.fillStyle = '#cfdcec'; x.fillRect(cx * Sc, (cy + 1) * Sc, w * Sc, Sc); }
+  for (let X = 0; X < W; X++) { const hy = 27 + Math.round(Math.sin(X * 0.35) * 2 + Math.sin(X * 0.9) * 0.6); x.fillStyle = '#4f8f46'; x.fillRect(X * Sc, hy * Sc, Sc, (36 - hy) * Sc); }
+  x.fillStyle = '#5fae3f'; x.fillRect(0, 36 * Sc, W * Sc, 3 * Sc); x.fillStyle = '#4c9634'; x.fillRect(0, 38 * Sc, W * Sc, Sc);
+  for (let X = 0; X < W; X += 3) px(X + (X % 2), 35, '#6fc24a');
+  x.fillStyle = '#8a5a35'; x.fillRect(0, 39 * Sc, W * Sc, (H - 39) * Sc);
+  for (let i = 0; i < 26; i++) px((i * 7) % W, 40 + (i * 5) % 6, i % 3 ? '#74492a' : '#9c6a42');
+  // soft shadows under you both
+  x.fillStyle = 'rgba(0,0,0,.22)'; x.fillRect(2 * Sc, 36 * Sc, 12 * Sc, Sc); x.fillRect(16 * Sc, 36 * Sc, 16 * Sc, Sc);
+  const draw = (rows, ox, oy, pal) => rows.forEach((r, y) => [...r].forEach((ch, i) => { if (ch !== '.' && pal[ch]) px(ox + i, oy + y, pal[ch]); }));
+  // you (blinks now and then)
+  const blink = f === 3;
   const kid = [
-    '......RRRRRR..', '.....RRRRRRRR.', '....RRRRRRRRRR', '.....HSSSSSSH.', '.....SSESSESS.', '.....SSSSSSSS.', '.....SSSMMSSS.',
-    '....GGGGGGGGGG', '...GGGGGWGGGGG', '...GGGGGWGGGGG', '...SGGGGGGGGGS', '...SGGGGGGGGGS', '....JJJJJJJJJJ', '....JJJJJ.JJJJ',
-    '....JJJJ..JJJJ', '....JJJJ..JJJJ', '....JJJJ..JJJJ', '....JJJJ..JJJJ', '...KKKKK..KKKK', '...KKKKK..KKKK'];
+    '.....RRRRRR.....', '....RRRRRRRR....', '...RRRRrRRRRR...', '...rRRRRRRRRr...', '..VVVVVVVVVVVV..', '...hSSSSSSSSh...',
+    blink ? '...hSSSSSSSSh...' : '...hSWESSEWSh...', blink ? '...SSssSSssSS...' : '...SSSSSSSSSS...', '...SsSSSSSSsS...', '....SSSMMSSS....', '.....sSSSSs.....',
+    '...gGGGGGGGGg...', '..gGGGGGLGGGGg..', '.SgGGGGLLLGGGgS.', '.SgGGGGGLGGGGgS.', '.SgGGGGGGGGGGgS.', '.sgGGGGGGGGGGgs.', '.s.gggggggggg.s.',
+    '...JJJJJJJJJJ...', '...JJJJjjJJJJ...', '...JJJJ..JJJJ...', '...jJJJ..JJJj...', '...jJJJ..JJJj...', '...jJJJ..JJJj...', '..KKKKK..KKKKK..', '..kKKKK..KKKKk..'];
+  draw(kid, 0, 11, { R: '#d23a33', r: '#a32622', V: '#8f1d1a', h: '#5a3a1e', S: '#f0c49a', s: '#d9a57a', W: '#ffffff', E: '#25263a', M: '#b5594c',
+    G: '#3f9a5e', g: '#2c7346', L: '#f2f2f2', J: '#3f62b3', j: '#2c4a8c', K: '#4a4a52', k: '#6c6c76' });
+  // Nugget the corgi, side view: big ears, long loaf body, short legs, stubby tail that wags
+  const tail = f % 2 ? 'oO' : 'Oo';
   const dog = [
-    '.D..........D.', '.DO........OD.', '.OPO......OPO.', '.OPPO....OPPO.', '.OOOOOOOOOOOO.', '.OOOOOCCOOOOO.',
-    '.OEWOOCCOOEWO.', '.OEEOCCCCOEEO.', '..OCCCNNCCCO..', '..OCCCTTCCCO..', '...BBBBBBBB...', '..OBBBYBBBBO..',
-    '..OOCBBBBCOO..', '..OOCCBBCCOO..', '..OOCCCCCCOO..', '..CCC.CC.CCC..'];
-  const rows = kid.map((r, y) => { const dy = y - 4; return r + (dy >= 0 && dy < dog.length ? dog[dy] : '..............'); });
+    '..O...O.............', '.OPO.OPO............', '.OPPOPPO............', '.OOOOOOO............', 'OOOWEOOOO...........', 'OOOEEOOOO...........',
+    'NCCCOOOOOOOOOOOOOO' + tail, '.CCCCOBBBOOOOOOOOOO.', '..TCBBYBBOOOOOOOOOO.', '...CCBBBCOOOOOOOOOo.', '....CCCCCCCCCCCCCCo.',
+    '....CC.CC.....CC.CC.', '....CC.CC.....CC.CC.', '...cCC.cCC...cCC.cCC'];
   const band = neck === 'blue' ? '#2659d9' : '#d12a2e';
-  playerPic = pix(rows, { R: '#c9302c', H: '#5a3a1e', S: '#f0c49a', E: '#2a2a40', M: '#b06050', G: '#3a8f5a', W: '#ffffff', J: '#3c5aa8', K: '#555',
-    O, D, C, P: '#f7b7b0', N: '#1a1214', T: '#f06a86', B: band, Y: '#ffd34d' }, 4);
-  return playerPic;
+  draw(dog, 12, 23, { O, o: D, C, c: shadeHex(fc[2], 0.82), P: '#f7b7b0', W: '#ffffff', E: '#1a1214', N: '#1a1214', T: '#f06a86', B: band, Y: '#ffd34d' });
+  return (playerPic = c);
 }
+// a tiny idle animation (tail wags, you blink) while the inventory is open
+setInterval(() => { if (!$('craft').hidden && craftMode === 'inv' && playerPic) { picFrame++; playerCanvas(); } }, 450);
 function mcTip() {   // dark purple tooltip that follows the mouse
   let t = $('mctip'); if (t) return t;
   t = document.createElement('div'); t.id = 'mctip'; t.hidden = true; document.body.appendChild(t);
@@ -2462,18 +2516,20 @@ const kCount = (k) => k === 'bucket' || k === 'fns' ? 1 : isNaN(k) ? G.items[k] 
 function resultArt(r) {
   if (r.tool) return artHTML('pick', r.tool); if (r.sword) return artHTML('sword', r.sword); if (r.armor) return armorImg('chest', r.armor);
   if (r.bucket) return artHTML('bucket'); if (r.fns) return artHTML('fns'); if (r.block) return artHTML(r.block);
+  if (r.art) return artHTML(r.art);
   return artHTML(r.name === 'Bread' ? 'bread' : r.name === 'Gold ingot' ? 'gold' : 'coal');
 }
-const recipeCount = (r) => r.name === '4 Planks' ? 4 : 1;
+const recipeCount = (r) => r.name === '4 Planks' || r.name === '4 Blaze lamps' ? 4 : r.name === '2 Blaze powder' ? 2 : 1;
 function doCraft(r) {
   if (!canCraft(r)) return false;
   for (const [k, n] of Object.entries(r.need)) { if (isNaN(k)) G.items[k] -= n; else G.inv[k] -= n; }
   if (r.tool) { G.tool = r.tool; say(`Crafted a <b>${TOOLS[r.tool]}</b>!`, 6000); }
-  else if (r.sword) { G.sword = r.sword; say(`Crafted a <b>${SWORDS[r.sword]}</b>! It hits monsters much harder.`, 6000); }
+  else if (r.sword) { G.sword = r.sword; say(r.sword === 5 ? 'Crafted the <b>Blaze sword</b>! 🔥 It hits hard AND sets monsters on fire.' : `Crafted a <b>${SWORDS[r.sword]}</b>! It hits monsters much harder.`, 6000); }
   else if (r.armor) { G.armor = r.armor; say(`You put on <b>${ARMORS[r.armor]} armor</b>! Monsters hurt you less.`, 6000); }
   else r.make();
   if (r.block === TABLE) say('Crafting table made! Put it in your hotbar, place it (right-click), then right-click it to craft tools.', 8000);
   if (r.block === FURNACE) say('Place the furnace (right-click), then right-click it to smelt.', 7000);
+  if (r.block === 21) say('<b>Blaze lamps</b>! Put them in your hotbar and place them to light up caves and your base at night.', 7000);
   if (r.bucket) say(`Bucket crafted! It is in hotbar slot <b>${G.hot.indexOf('bucket') + 1}</b>. Right-click water with it to fill it.`, 8000);
   if (r.fns) say(`Flint and steel! It is in hotbar slot <b>${G.hot.indexOf('fns') + 1}</b>. Right-click an obsidian frame to light a <b>Nether portal</b>.`, 9000);
   sfx('click'); Survival.hot(); return true;
@@ -2549,7 +2605,7 @@ function renderCraft() {
   craftSel[craftMode] = Math.min(craftSel[craftMode], list.length - 1); const r = list[craftSel[craftMode]];
   if (craftMode === 'inv') {
     const armor = document.createElement('div'); armor.className = 'mccol'; top.appendChild(armor);
-    for (const kind of ['helmet', 'chest', 'legs', 'boots']) armor.appendChild(mcSlot(armorImg(kind, G.armor), 0, G.armor ? `${ARMORS[G.armor]} ${kind === 'chest' ? 'chestplate' : kind}` : `Empty ${kind === 'chest' ? 'chestplate' : kind} slot\n<span class="need">Craft armor at a crafting table</span>`, null, G.armor ? '' : 'ghost'));
+    for (const kind of ['helmet', 'chest', 'legs', 'boots']) armor.appendChild(mcSlot(G.armor ? armorImg(kind, G.armor) : armorGhostImg(kind), 0, G.armor ? `${ARMORS[G.armor]} ${kind === 'chest' ? 'chestplate' : kind}` : `Empty ${kind === 'chest' ? 'chestplate' : kind} slot\n<span class="need">Craft armor at a crafting table</span>`, null, ''));
     const pl = document.createElement('div'); pl.className = 'mcplayer'; pl.appendChild(playerCanvas()); top.appendChild(pl);
   }
   const cw = document.createElement('div'); cw.className = 'mccol'; if (craftMode === 'table') cw.style.margin = '0 auto';
@@ -2733,7 +2789,7 @@ const Survival = {
     if (!G || scene !== 'survival') return false;
     if (G.smp) return SMP.savePlayer(quiet);
     const cleanMobs = (list) => list.map((m) => ({ ...m, mate: null }));
-    const skip = new Set(['saved', 'tables', 'furnaceAt', 'netherFrame', 'mobs', 'mine', 'heartsShown', 'mobLock', 'over', 'shots', 'orbs', 'xpShown']);
+    const skip = new Set(['saved', 'tables', 'furnaceAt', 'netherFrame', 'mobs', 'mine', 'heartsShown', 'mobLock', 'over', 'shots', 'orbs', 'xpShown', 'fireballs']);
     const plain = {}; for (const k of Object.keys(G)) if (!skip.has(k)) plain[k] = G[k];
     const worlds = { [G.dim]: this.rle(this.snapshot()) }, other = {};
     for (const d of ['over', 'nether']) if (d !== G.dim && G.saved[d]) { const sv = G.saved[d]; worlds[d] = this.rle(sv.world); other[d] = { tables: [...sv.tables], furnaceAt: [...sv.furnaceAt], mobs: cleanMobs(sv.mobs) }; }
@@ -2750,6 +2806,8 @@ const Survival = {
     G.over = false; G.mine = null; G.mobLock = false; G.shots = []; G.heartsShown = null;
     G.tables = new Set(sv.tables); G.furnaceAt = new Set(sv.furnaceAt); G.netherFrame = sv.netherFrame ? new Set(sv.netherFrame) : null;
     G.mobs = sv.mobs; G.saved = {};
+    for (const k of Object.keys(ITEM)) if (G.items[k] == null) G.items[k] = 0;
+    G.fx = G.fx || {};
     for (const d of ['over', 'nether']) if (d !== G.dim && sv.worlds[d]) {
       const o = sv.other[d] || {};
       G.saved[d] = { world: this.unrle(sv.worlds[d]), tables: new Set(o.tables || []), furnaceAt: new Set(o.furnaceAt || []), fires: [], mobs: o.mobs || [] };
@@ -2939,7 +2997,8 @@ const Survival = {
   damageMob(m, by) {
     const hostile = MOBS[m.type].hostile;
     if (m.tamed && !by) return say('That is your dog! Be nice. 🐶', 2000);
-    let dmg = by ? by.dmg : Math.max(TOOL_DMG[G.tool], SWORD_DMG[G.sword]);
+    let dmg = by ? by.dmg : Math.max(TOOL_DMG[G.tool], SWORD_DMG[G.sword]) + (G.fx && G.fx.strength > 0 ? 3 : 0);
+    if (!by && G.sword === 5 && hostile && m.type !== 'blaze') m.onFire = 4;
     const crit = !by && !E.player_on_ground() && G.peak != null && E.player_y() < G.peak - 0.15;
     if (crit) { dmg = Math.ceil(dmg * 1.5); for (let i = 0; i < 14 && FX.length < 300; i++) FX.push({ x: m.x, y: m.y + MOBS[m.type].h * 0.7, z: m.z, vx: (Math.random() - 0.5) * 6, vy: Math.random() * 4, vz: (Math.random() - 0.5) * 6, t: 0, life: 0.5, col: [1, 1, 0.7], s: 0.04 }); }
     m.hp -= dmg; m.hit = 0.3; if (!hostile) m.flee = 5;
@@ -2975,6 +3034,8 @@ const Survival = {
     if (h && h.id === FURNACE && G.furnaceAt.has(posKey(h.x, h.y, h.z))) return openFurnace();
     if (h && G.tables.has(posKey(h.x, h.y, h.z))) return openTable();
     const k = G.hot[selected];
+    if (k === 'fireWand' && G.items.fireWand > 0) return this.wandShoot();
+    if (POTIONS[k] && G.items[k] > 0) return this.drink(k);
     if (k === 'bone' && G.items.bone > 0) {
       const w = this.hitMob(4.5);
       if (w && w.type === 'wolf' && !w.tamed) {
@@ -3002,6 +3063,38 @@ const Survival = {
     if (k === TABLE) { G.tables.add(pk); say('Crafting table placed! <b>Right-click</b> it to craft tools.', 6000); }
     if (k === FURNACE) { G.furnaceAt.add(pk); say('Furnace placed! Right-click it to smelt and cook.', 5000); }
     this.hot();
+  },
+  drink(k) {
+    const [fx, name, col] = POTIONS[k];
+    G.items[k]--; G.fx = G.fx || {}; G.fx[fx] = 60; sfx('eat'); setTimeout(() => sfx('coin'), 200);
+    banner(name + '!', '60 seconds', col, 1800); this.hot();
+    for (let i = 0; i < 18; i++) FX.push({ x: E.player_x() + (Math.random() - 0.5) * 0.8, y: E.player_y() + Math.random() * 1.8, z: E.player_z() + (Math.random() - 0.5) * 0.8, vx: 0, vy: 1 + Math.random(), vz: 0, t: 0, life: 0.9, col: hexRgb(col), s: 0.05 });
+  },
+  wandShoot() {
+    if ((G.wandCool || 0) > 0) return;
+    G.wandCool = 0.55; sfx('boom'); swingT = 0.25;
+    G.fireballs = G.fireballs || [];
+    G.fireballs.push({ x: curEye[0] + curDir[0] * 0.8, y: curEye[1] + curDir[1] * 0.8 - 0.15, z: curEye[2] + curDir[2] * 0.8, vx: curDir[0] * 24, vy: curDir[1] * 24, vz: curDir[2] * 24, t: 0 });
+  },
+  fireballStep(dt) {
+    G.wandCool = Math.max(0, (G.wandCool || 0) - dt);
+    if (!G.fireballs || !G.fireballs.length) return;
+    for (const f of G.fireballs) {
+      for (let k = 0; k < 4 && !f.dead; k++) {
+        const st = dt / 4; f.x += f.vx * st; f.y += f.vy * st; f.z += f.vz * st;
+        let hit = null;
+        for (const m of G.mobs) if (!m.dead && !m.tamed && Math.abs(m.x - f.x) < MOBS[m.type].hw + 0.25 && Math.abs(m.z - f.z) < MOBS[m.type].hw + 0.25 && f.y > m.y && f.y < m.y + MOBS[m.type].h + 0.2) { hit = m; break; }
+        if (hit || E.solid_at(f.x, f.y, f.z) || f.t > 2.5) {
+          f.dead = true;
+          for (let i = 0; i < 40; i++) { const a = Math.random() * 6.28, u = Math.random() * 2 - 1, q = Math.sqrt(1 - u * u), sp = 2 + Math.random() * 5; spawnFire(f.x, f.y, f.z, Math.cos(a) * q * sp, Math.abs(u) * sp + 1, Math.sin(a) * q * sp, 0.1, 0.55); }
+          sfx('boom');
+          for (const m of G.mobs) if (!m.dead && !m.tamed && Math.hypot(m.x - f.x, m.y + 0.6 - f.y, m.z - f.z) < 2.6) { this.damageMob(m, { dmg: m === hit ? 7 : 4, x: f.x, z: f.z }); if (MOBS[m.type].hostile && m.type !== 'blaze') m.onFire = 3; }
+        }
+      }
+      if (!f.dead) for (let k = 0; k < 3; k++) spawnFire(f.x, f.y, f.z, (Math.random() - 0.5) * 1.5, 0.6, (Math.random() - 0.5) * 1.5, 0.08, 0.4);
+      f.t += dt;
+    }
+    G.fireballs = G.fireballs.filter((f) => !f.dead);
   },
   eat(k) {
     if (G.hp >= 20) return warn('Your hearts are already full.');
@@ -3253,7 +3346,8 @@ const Survival = {
     const cell = (y) => E.get_block(Math.floor(px), Math.floor(y), Math.floor(pz));
     // lava and fire burn
     const burning = [py + 0.1, py + 1].some((y) => cell(y) === LAVA);
-    if (burning) { G.lavaT -= dt; if (G.lavaT <= 0) { G.lavaT = 0.5; this.hurt(2, 'You burned in lava'); if (G.hp > 4 && Math.random() < 0.4) warn('Ouch! Get out of the lava!'); } }
+    if (burning && G.fx && G.fx.fireRes > 0) { if (Math.random() < dt * 8) spawnFire(E.player_x(), E.player_y() + 0.3, E.player_z(), 0, 1, 0, 0.06, 0.4); }
+    else if (burning) { G.lavaT -= dt; if (G.lavaT <= 0) { G.lavaT = 0.5; this.hurt(2, 'You burned in lava'); if (G.hp > 4 && Math.random() < 0.4) warn('Ouch! Get out of the lava!'); } }
     else G.lavaT = 0;
     // fall damage
     const ground = E.player_on_ground();
@@ -3286,7 +3380,8 @@ const Survival = {
     // creatures
     for (const m of G.mobs) this.mobStep(m, dt);
     G.mobs = G.mobs.filter((m) => !m.dead);
-    this.orbStep(dt); this.xpHud();
+    this.orbStep(dt); this.xpHud(); this.fireballStep(dt);
+    if (G.fx) for (const k of Object.keys(G.fx)) if (G.fx[k] > 0) { G.fx[k] -= dt; if (G.fx[k] <= 0) say(`Your <b>${{ speed: 'speed', strength: 'strength', fireRes: 'fire resistance' }[k]}</b> potion wore off.`, 2500); }
     if (G.dim === 'over' && !(G.smp && G.isl === 'spawn')) {
       G.mobSpawnT += dt;
       const passive = G.mobs.filter((m) => !MOBS[m.type].hostile).length, hostile = G.mobs.length - passive;
@@ -3328,6 +3423,7 @@ const Survival = {
       }
     }
     for (const m of G.mobs) this.drawMob(V, I, m);
+    for (const f of G.fireballs || []) pushBox(V, I, [f.x, f.y, f.z], [0, 0, 0], [0.15, 0.15, 0.15], [1, 0.85, 0.4], f.t * 8, 3);
     for (const o of G.orbs || []) { const p = 1 + Math.sin(o.t * 10 + o.x) * 0.2, sz = (0.05 + o.v * 0.025) * p; pushBox(V, I, [o.x, o.y, o.z], [0, 0, 0], [sz, sz, sz], [0.65 + Math.sin(o.t * 6) * 0.2, 1, 0.25], o.t * 3, 3); }
     if (G.dim === 'over') for (const c of G.crops) {
       const hgt = 0.18 + 0.22 * c.stage, ripe = c.stage >= 3;
@@ -3476,6 +3572,7 @@ const Survival = {
       m.burn = (m.burn || 0) - dt;
       if (m.burn <= 0) { m.burn = 1; if (this.skyAbove(m)) { m.hp -= 3; m.hit = 0.2; m.onFire = 1.2; if (m.hp <= 0) { m.dead = true; this.grantXP(m.x, m.y + 0.5, m.z, 3); } } }
     }
+    if (m.onFire > 0 && !this.skyAbove(m)) { m.fireTick = (m.fireTick || 0) - dt; if (m.fireTick <= 0) { m.fireTick = 1; m.hp -= 1; m.hit = 0.15; popNum(m.x, m.y + MOBS[m.type].h + 0.3, m.z, '-1', '#ff8a2a'); if (m.hp <= 0 && !m.dead) { m.dead = true; sfx('kill'); this.grantXP(m.x, m.y + 0.5, m.z, 5); } } }
     if (m.onFire > 0) { m.onFire -= dt; for (let k = 0; k < 2; k++) spawnFire(m.x + (Math.random() - 0.5) * 0.55, m.y + Math.random() * 1.7, m.z + (Math.random() - 0.5) * 0.55, 0, 1.2, 0, 0.07, 0.5); }
     let walk = d < 26 ? s.speed : 0;
     if (s.range) { if (d < s.range - 3) walk = -s.speed * 0.8; else if (d < s.range) walk = 0; }
@@ -6672,7 +6769,8 @@ function drawHeld(V, I, eye, R, U, F, dt) {
   }
   else if (it.kind === 'sword') {
     const T = mk(-0.2, 0.25, 0.5), c = TIER_COL[it.tier];
-    pushBoxT(V, I, [0, 0.1, 0], [0.026, 0.19, 0.008], c, it.tier === 4 ? 3 : 0, T);
+    pushBoxT(V, I, [0, 0.1, 0], [0.026, 0.19, 0.008], c, it.tier >= 4 ? 3 : 0, T);
+    if (it.tier === 5) { pushBoxT(V, I, [0, 0.1, 0.009], [0.012, 0.17, 0.002], [1, 0.95, 0.55], 3, T); const fl = 0.02 + Math.abs(Math.sin(performance.now() / 77)) * 0.02; pushBoxT(V, I, [0, 0.3, 0], [fl, fl * 1.6, fl * 0.6], [1, 0.6, 0.12], 3, T); }   // the blaze sword glows and flickers
     pushBoxT(V, I, [0, -0.1, 0], [0.075, 0.016, 0.022], [0.28, 0.2, 0.12], 0, T);
     pushBoxT(V, I, [0, -0.17, 0], [0.016, 0.06, 0.016], [0.5, 0.33, 0.17], 0, T);
   }
@@ -6682,6 +6780,39 @@ function drawHeld(V, I, eye, R, U, F, dt) {
   else if (it.kind === 'fns') { const T = mk(0.3, 0.2, 0.3); pushBoxT(V, I, [0, 0, 0], [0.06, 0.02, 0.02], [0.7, 0.7, 0.74], 0, T); pushBoxT(V, I, [0.05, 0.05, 0], [0.02, 0.05, 0.02], [0.7, 0.7, 0.74], 0, T); pushBoxT(V, I, [-0.04, 0.05, 0.03], [0.03, 0.03, 0.03], [0.17, 0.17, 0.19], 0, T); }
 }
 const LINE_I = new Uint32Array([0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7]);
+// ---------- V: camera views (first person, behind you, in front of you) and your own body ----------
+let camView = 0, meWalk = 0;
+const CAM_NAMES = ['First person', 'Behind you', 'In front of you'];
+addEventListener('keydown', (e) => {
+  if (e.code !== 'KeyV' || e.repeat || (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) || !playing) return;
+  camView = (camView + 1) % 3; sfx('click');
+  say(`Camera: <b>${CAM_NAMES[camView]}</b> (press <b>V</b> to switch)`, 1800);
+});
+function drawMe(V, I, riding, dt) {
+  const o = [E.player_x(), E.player_y(), E.player_z()], y = yaw, moving = E.player_speed() > 0.5 && E.player_on_ground();
+  if (moving) meWalk += dt * 9;
+  const sw = moving ? Math.sin(meWalk) * 0.45 : 0;
+  const box = (c, h, col) => pushBox(V, I, o, c, h, col, y);
+  const SKIN = [0.94, 0.77, 0.6], SHIRT = [0.25, 0.6, 0.37], SH2 = [0.17, 0.45, 0.27], PANTS = [0.25, 0.38, 0.7], SHOE = [0.29, 0.29, 0.32], CAP = [0.82, 0.23, 0.2], VIS = [0.56, 0.11, 0.1];
+  const lift = riding ? 0.62 : 0;
+  if (riding) for (const s of [1, -1]) { box([s * 0.24, 0.62, 0.12], [0.1, 0.1, 0.22], PANTS); box([s * 0.26, 0.42, 0.28], [0.1, 0.2, 0.1], PANTS); box([s * 0.26, 0.2, 0.3], [0.11, 0.05, 0.13], SHOE); }
+  else for (const s of [1, -1]) { box([s * 0.12, 0.37, sw * s * 0.25], [0.11, 0.33, 0.11], PANTS); box([s * 0.12, 0.05, sw * s * 0.25 + 0.03], [0.115, 0.05, 0.14], SHOE); }
+  box([0, 1.1 + lift * 0.15 - (riding ? 0 : 0), 0], [0.26, 0.36, 0.14], SHIRT);
+  box([0, 1.12 + lift * 0.15, 0.142], [0.06, 0.08, 0.004], [0.95, 0.95, 0.95]);
+  const swing = swingT > 0 ? Math.sin(swingT * 14) * 0.5 : 0;
+  for (const s of [1, -1]) {
+    const fwd = riding ? 0.22 : -sw * s * 0.3 + (s === 1 ? swing * 0.6 : 0);
+    box([s * 0.37, 1.12 + lift * 0.15, fwd], [0.1, 0.3, 0.1], SH2);
+    box([s * 0.37, 0.78 + lift * 0.15, fwd + (riding ? 0.08 : 0)], [0.09, 0.06, 0.09], SKIN);
+  }
+  const hy = 1.7 + lift * 0.15;
+  box([0, hy, 0], [0.24, 0.24, 0.24], SKIN);
+  for (const s of [1, -1]) { box([s * 0.1, hy + 0.02, 0.245], [0.045, 0.045, 0.006], [1, 1, 1]); box([s * 0.1, hy + 0.01, 0.25], [0.025, 0.03, 0.006], [0.12, 0.12, 0.2]); }
+  box([0, hy - 0.11, 0.245], [0.07, 0.02, 0.006], [0.7, 0.35, 0.3]);
+  box([0, hy + 0.03, -0.05], [0.25, 0.17, 0.2], [0.36, 0.23, 0.12]);   // hair sticking out under the cap (back and sides, not over your face)
+  box([0, hy + 0.2, 0], [0.26, 0.08, 0.26], CAP); box([0, hy + 0.3, -0.02], [0.22, 0.04, 0.22], CAP);
+  box([0, hy + 0.13, 0.33], [0.24, 0.02, 0.12], VIS);
+}
 function drawGeo(geo, V, I, mode) {
   gl.bindVertexArray(geo.vao);
   gl.bindBuffer(gl.ARRAY_BUFFER, geo.vb); gl.bufferData(gl.ARRAY_BUFFER, V, gl.DYNAMIC_DRAW);
@@ -6696,7 +6827,7 @@ function outlineVerts(h) {
 }
 
 // test hook: only when the page is opened with #debug
-if (location.hash.startsWith('#debug')) window.cbg = { TILE, cubeIcon, itemIcon, get TEXMODE() { return TEXMODE; }, SMP, NET, get SMP_ON() { return SMP_ON; }, survivalState, WALLET, NUG, openShop, doTrick, BONE_SPOTS, BONES_FOUND, PADS, STRIPS, get boostT() { return boostT; }, fireworks, earn, ringDist, Duo, keys, ghostAt, get playing() { return playing; }, get joining() { return joining; }, Spleef, Parkour, genCourse, encodeCourse, decodeCourse, redraw() { worldDirty = true; }, lightVerts, Wars, FOES, openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
+if (location.hash.startsWith('#debug')) window.cbg = { RECIPES, doCraft, setBlock, pick, TILE, cubeIcon, itemIcon, get TEXMODE() { return TEXMODE; }, SMP, NET, get SMP_ON() { return SMP_ON; }, survivalState, WALLET, NUG, openShop, doTrick, BONE_SPOTS, BONES_FOUND, PADS, STRIPS, get boostT() { return boostT; }, fireworks, earn, ringDist, Duo, keys, ghostAt, get playing() { return playing; }, get joining() { return joining; }, Spleef, Parkour, genCourse, encodeCourse, decodeCourse, redraw() { worldDirty = true; }, lightVerts, Wars, FOES, openTable, MOBS, openInv, Build, get eye() { return [curEye, curDir]; }, Survival, rayAny, openFurnace, get selected() { return selected; }, skyIslands, skyProg, SKY_HOPS, turn, E, loadGame, toLobby, race, ride, Build, Wars, get G() { return G; }, get scene() { return scene; }, setLook(y, p) { yaw = y; pitch = p; } };
 
 // ---------- loop ----------
 setHotbar(LOBBY_SLOTS);
@@ -6730,6 +6861,7 @@ function frame(now) {
   padStep(dt);
   if (boostT > 0 && ridingNow) { fx *= 1.8; fz *= 1.8; }
   if (lobby && hasSet('hero')) { fx *= 1.4; fz *= 1.4; }
+  if (scene === 'survival' && G && G.fx && G.fx.speed > 0) { fx *= 1.5; fz *= 1.5; }
   if (scene === 'spleef' && G && G.pw && G.pw.speed > 0) { fx *= 1.5; fz *= 1.5; }
   if (lobby) dragonFly(dt, ridingNow && playing && !blocked ? jump : 0, ridingNow);
   const ret = joining ? 0 : E.player_step(dt, fx, fz, scene === 'duo' ? 0 : jump, sprint);
@@ -6761,6 +6893,14 @@ function frame(now) {
   curEye = eye; curDir = dir;
   const cam = !lobby && G && GAMES[scene].camera ? GAMES[scene].camera() : null;
   if (cam) { eye = cam.eye; dir = cam.dir; }
+  else if (camView && playing) {
+    // V camera: pull the camera back behind you (or out in front of you), stopping before it goes into a wall
+    const sgn = camView === 1 ? -1 : 1, far = riding ? 5 : 4;
+    let t = 0.3;
+    for (; t < far; t += 0.1) if (E.solid_at(eye[0] + dir[0] * t * sgn, eye[1] + dir[1] * t * sgn, eye[2] + dir[2] * t * sgn)) { t = Math.max(0.3, t - 0.3); break; }
+    eye = [eye[0] + dir[0] * t * sgn, eye[1] + dir[1] * t * sgn, eye[2] + dir[2] * t * sgn];
+    if (camView === 2) dir = [-dir[0], -dir[1], -dir[2]];
+  }
   const fovBase = 70 * Math.PI / 180, fov = fovBase + (riding ? Math.min(0.35, speed / 70) : 0);
   const asp = canvas.width / canvas.height;
   const P = persp(fov, asp, 0.05, 260), L = look(eye, dir), VP = mul(P, L.m);
@@ -6816,6 +6956,7 @@ function frame(now) {
   {
     const V = [], I = [];
     if ((scene === 'wars' || scene === 'survival' || scene === 'parkour' || scene === 'spleef') && G) GAMES[scene].draw(V, I);
+    if (camView && playing && !cam) drawMe(V, I, riding, dt);
     AMB.night = nightK; ambientStep(dt, V, I); drawBones(V, I); fireworkStep(dt);
     fxStep(dt);
     drawFX(V, I);
@@ -6847,7 +6988,7 @@ function frame(now) {
   }
   gl.depthMask(true);
   // the item in your hand
-  if (playing && !(cam && scene === 'build')) {
+  if (playing && !(cam && scene === 'build') && !camView) {
     const V = [], I = [];
     drawHeld(V, I, eye, L.r, L.u, dir, dt);
     if (I.length) { gl.disable(gl.BLEND); gl.clear(gl.DEPTH_BUFFER_BIT); drawGeo(handGeo, new Float32Array(V), new Uint32Array(I), gl.TRIANGLES); }
